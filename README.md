@@ -1,0 +1,2 @@
+# jsanic
+Fast javascript beautifyer
