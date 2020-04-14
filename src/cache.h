@@ -1,9 +1,9 @@
+#include <unistd.h>
 #include <string.h>  //strlen
 #include <stdlib.h> // malloc
-#include <stdio.h> // fread
 
 typedef struct  cache {
-		FILE *fp;
+		int fd;
 		unsigned char *buf;
 		size_t charnum, real_size, size, linenum;
 		size_t start,index, behind;
@@ -13,7 +13,7 @@ typedef struct  cache {
 
 size_t cache_getcharnum(cache *c);
 size_t cache_getlinenum(cache *c);
-cache * cache_init(size_t size, FILE *fp);
+cache * cache_init(size_t size, int fd);
 void cache_destroy(cache *c);
 int cache_getc(cache *c);
 int cache_eof(cache *c);
@@ -29,7 +29,6 @@ int cache_step_back(cache *c);
  *     <0  error
  */
 int cache_match(cache *c, char *str);
-int cache_chr_peek_ahead_n(cache *c, size_t n);
 /*
  * Compare cache to what is next in the string. 
  *		 >0  cache is bigger

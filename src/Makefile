@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -g -Wall
-TARGET = jspurty
+TARGET = jsanic
 SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
 

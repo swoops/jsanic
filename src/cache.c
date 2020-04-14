@@ -1,8 +1,8 @@
 #include "cache.h"
+#include "errorcodes.h"
 
 #define MINCACHESIZE  128
 #define MAXSTRLEN  0x400
-#define ERROR -2
 
 size_t cache_getcharnum(cache *c){
 		return c->charnum;
@@ -12,7 +12,7 @@ size_t cache_getlinenum(cache *c){
 		return c->linenum;
 }
 
-cache * cache_init(size_t size, FILE *fp){
+cache * cache_init(size_t size, int fd){
 		cache *c = (cache *) malloc(sizeof(cache));
 		if ( !c ) return NULL;
 
@@ -31,7 +31,7 @@ cache * cache_init(size_t size, FILE *fp){
 		c->behind = 0;
 		c->linenum = 1;
 		c->real_size = size;
-		c->fp = fp;
+		c->fd = fd;
 		return c;
 }
 
@@ -40,6 +40,18 @@ void cache_destroy(cache *c){
 		free(c);
 }
 
+int readchr(int fd){
+		ssize_t ret;
+		unsigned char buf;
+		ret = read(fd, &buf, 1);
+		if ( ret == 0 ){
+				return EOF;
+		}else if ( ret == 1 ){
+				return (int) buf;
+		}else {
+				return IOERROR;
+		}
+}
 
 int cache_getc(cache *c){
 		int ret;
@@ -54,7 +66,7 @@ int cache_getc(cache *c){
 				return ret;
 		}
 
-		ret = fgetc(c->fp);
+		ret = readchr(c->fd);
 		if ( ret == EOF ){
 				c->eof = 1;
 				return ret;
@@ -106,24 +118,6 @@ int cache_step_backcount(cache *c, size_t count){
 int cache_eof(cache *c){
 		if ( c->eof ) return 1;
 		return 0;
-}
-
-int cache_chr_peek_ahead_n(cache *c, size_t n){
-		if ( n > c->real_size ) return ERROR;
-		if ( c->behind < n ){
-				int ret;
-				size_t i;
-				for (i=0; i<n-c->behind; i++){
-						ret = cache_getc(c);
-						if ( ret < 0 ){
-								break;
-						}
-				}
-				cache_step_backcount(c, i+1);
-				return ret;
-		}
-		size_t index = (c->index + n) % c->real_size;
-		return (int) c->buf[index]; 
 }
 
 int cache_match(cache *c, char *str){

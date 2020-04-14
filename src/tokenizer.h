@@ -41,7 +41,7 @@ typedef struct token_list {
 
 #define LIST_LOCK 1 << 0
 
-int gettokens(FILE *fp, token_list *list);
+int gettokens(int fd, token_list *list);
 
 /*
  * generate a empty token list. Use a userlock paramter for thread safety

@@ -329,8 +329,8 @@ int add_variable(token_list *list, cache *stream, int ch){
 		return token_list_add_dynamic(list, buf, IDENTIFIER, VARIABLE, linenum, charnum);;
 }
 
-int gettokens(FILE *fp, token_list *list){
-		cache * stream = cache_init(2048, fp);
+int gettokens(int fd, token_list *list){
+		cache * stream = cache_init(128, fd);
 		int ret = 0;
 		int type;
 		int ch;
