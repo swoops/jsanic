@@ -3,11 +3,11 @@
 #include <stdlib.h> // malloc
 
 typedef struct  cache {
-		int fd;
-		unsigned char *buf;
-		size_t charnum, real_size, size, linenum;
-		size_t start,index, behind;
-		int eof;
+	int fd;
+	unsigned char *buf;
+	size_t charnum, real_size, size, linenum;
+	size_t start,index, behind;
+	int eof;
 } cache;
 
 
@@ -30,7 +30,7 @@ int cache_step_back(cache *c);
  */
 int cache_match(cache *c, char *str);
 /*
- * Compare cache to what is next in the string. 
+ * Compare cache to what is next in the string.
  *		 >0  cache is bigger
  *		 0   matches
  *     <0  cache is smaller

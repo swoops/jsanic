@@ -40,7 +40,7 @@ tokens = {
         "nameid" : "TAB",
         "type" : "WHITESPACE",
     },
-    "0": { 
+    "0": {
         "nameid" : "NUMBER",
         "type" : "NUMERIC",
     },
@@ -189,7 +189,7 @@ typedef struct tokendata {
 
 def get_types():
     ret  = "enum tokentypes {\n"
-    for i in types: 
+    for i in types:
         ret += TAB
         ret += "%s,\n" % i
     ret += "};\n"
@@ -197,7 +197,7 @@ def get_types():
 
 def get_nameids():
     ret  = "enum nameids {\n"
-    for i,c in enumerate( tokens_sorted_list ): 
+    for i,c in enumerate( tokens_sorted_list ):
         ret += TAB
         ret += "%s = %d,\n" % (tokens[c]["nameid"], i)
     for c in extra_nameids:
@@ -230,7 +230,7 @@ def get_tokenstrs():
     ret = "tokendata tokenstrs[] = {\n"
     for name in tokens_sorted_list:
         info = tokens[name]
-        ret += "{\n" 
+        ret += "{\n"
         ret += TAB*2 + ".name = %s,\n" % (format_token(name))
         ret += TAB*2 + ".length = %d,\n" % (len(name))
         for i in info:
@@ -238,7 +238,6 @@ def get_tokenstrs():
         ret += TAB + "},"
     ret += "\n};\n"
     return ret
-        
 
 
 def build_h_file():
