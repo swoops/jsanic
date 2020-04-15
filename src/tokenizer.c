@@ -1,8 +1,10 @@
 #include <string.h>  //strlen
-#include <stdlib.h> // malloc
-#include <stdio.h> // fread
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <assert.h>
 
+#include "errorcodes.h"
 #include "tokens.h"
 #include "tokenizer.h"
 #include "cache.h"
@@ -27,6 +29,25 @@ static void token_list_append(token_list *list, token *tok){
 	TOKEN_SETLINKED(tok);
 	unlocklist(list);
 }
+
+int token_list_print_consume(token_list *list){
+	token *node = list->head;
+	printf("size: %ld\n", list->size);
+	printf("line   charnum   length  value\n");
+	while ( ( node = token_list_pop(list) ) != NULL){
+		printf("%-4ld   %-8ld  %-6ld  %s\n", node->linenum, node->charnum, node->length, node->value);
+		if ( node->nameid == NID_EOF ){
+			printf(" == EOF ==\n");
+			printf("Num of lines: %ld\n", node->linenum);
+			printf("EOF size: %ld\n", node->charnum);
+			token_destroy(node);
+			return 0;
+		}
+		token_destroy(node);
+	}
+	return -1;
+}
+
 
 static token * init_token(){
 	token * ret = (token *) malloc(sizeof(token));
@@ -89,7 +110,7 @@ token_list * init_token_list(){
 	return list;
 }
 
-token * tokens_consuehead(token_list *list){
+token * token_list_pop(token_list *list){
 	token *tok, *newhead;
 	locklist(list);
 	if ( list->size <= 0 ){
@@ -115,9 +136,9 @@ token * tokens_consuehead(token_list *list){
 	return tok;
 }
 
-void destroy_token_list(token_list *list){
+void token_list_destroy(token_list *list){
 	while ( list->size > 0 ){
-		token_destroy( tokens_consuehead(list) );
+		token_destroy( token_list_pop(list) );
 	}
 	pthread_mutex_destroy(&list->lock);
 	free(list);
@@ -337,7 +358,17 @@ static int token_binary_search(cache *stream, tokendata top[], size_t len ){
 }
 
 
-int gettokens(int fd, token_list *list){
+int gettokens_fromfname(char *fname, token_list *list){
+	int ret,fd = open(fname, O_RDONLY);
+	if ( fd < 0 ){
+		return FILEACCESS;
+	}
+	ret = gettokens_fromfd(fd, list);
+	close(fd);
+	return ret;
+}
+
+int gettokens_fromfd(int fd, token_list *list){
 	cache * stream = cache_init(128, fd);
 	int ret = 0;
 	int type;
