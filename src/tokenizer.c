@@ -417,7 +417,7 @@ int gettokens_fromfd(int fd, token_list *list){
 			}
 			break;
 		default:
-			fprintf(stderr, "Unkown character %c 0x%02x at %ld\n", ret, ret, cache_getcharnum(stream));
+			fprintf(stderr, "Unkown character 0x%02x at %ld\n", ch, cache_getcharnum(stream));
 			break;
 		}
 	}
