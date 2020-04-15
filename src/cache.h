@@ -16,7 +16,6 @@ size_t cache_getlinenum(cache *c);
 cache * cache_init(size_t size, int fd);
 void cache_destroy(cache *c);
 int cache_getc(cache *c);
-int cache_eof(cache *c);
 int cache_step_backcount(cache *c, size_t count);
 int cache_step_back(cache *c);
 

@@ -53,7 +53,7 @@ static int token_list_add_fromdata(token_list *list, tokendata *data, size_t lin
 		return -2;
 	}
 	tok->value = data->name;
-	tok->length = strlen(data->name);
+	tok->length = data->length;
 	tok->type = data->type;
 	tok->nameid = data->nameid;
 	tok->linenum = line;
@@ -139,7 +139,16 @@ int is_alpha_numeric(int ch){
 	return is_upper_alph(ch) || is_lower_alph(ch) || is_numeric(ch);
 }
 
-int maybe_punctuator(cache *stream, token_list *list, int dataindex){
+static int tokens_add_eof(token_list *list, cache *stream){
+	tokendata data;
+	data.name = "EOF";
+	data.length = 3;
+	data.type = TYPE_EOF;
+	data.nameid = NID_EOF;
+	return token_list_add_fromdata(list, &data, cache_getlinenum(stream), cache_getcharnum(stream));
+}
+
+static int maybe_punctuator(cache *stream, token_list *list, int dataindex){
 	tokendata *data = tokenstrs + dataindex;
 	int result;
 	size_t linenum = cache_getlinenum(stream);
@@ -147,12 +156,12 @@ int maybe_punctuator(cache *stream, token_list *list, int dataindex){
 	int ret = cache_consume_n_match(stream, data->name, data->length, &result);
 	if (ret < 0) return ret;
 	if ( result == 0 ){
-		token_list_add_fromdata( list, data, linenum, charnum);
+		token_list_add_fromdata(list, data, linenum, charnum);
 	}
 	return result;
 }
 
-int maybe_whitespace(cache *stream, token_list *list, int dataindex){
+static int maybe_whitespace(cache *stream, token_list *list, int dataindex){
 	int ch = cache_getc(stream);
 	if ( ch < 0 ) {
 		return ch;
@@ -164,7 +173,7 @@ int maybe_whitespace(cache *stream, token_list *list, int dataindex){
 	return 0;
 }
 
-int maybe_keyword(cache *stream, token_list *list, int dataindex){
+static int maybe_keyword(cache *stream, token_list *list, int dataindex){
 	tokendata *data = tokenstrs + dataindex;
 	int result;
 	size_t linenum = cache_getlinenum(stream);
@@ -186,7 +195,7 @@ int maybe_keyword(cache *stream, token_list *list, int dataindex){
 	return result;
 }
 
-int maybe_numeric(cache *stream, token_list *list) {
+static int maybe_numeric(cache *stream, token_list *list) {
 	size_t linenum = cache_getlinenum(stream);
 	size_t charnum = cache_getcharnum(stream);
 	size_t size = 32;
@@ -215,7 +224,7 @@ int maybe_numeric(cache *stream, token_list *list) {
 }
 
 
-int maybe_string(cache *stream, token_list *list, int dataindex) {
+static int maybe_string(cache *stream, token_list *list, int dataindex) {
 	size_t linenum = cache_getlinenum(stream);
 	size_t charnum = cache_getcharnum(stream);
 	int start = cache_getc(stream);
@@ -264,29 +273,7 @@ int maybe_string(cache *stream, token_list *list, int dataindex) {
 	return token_list_add_dynamic(list, buf, STRING, data->nameid, linenum, charnum);;
 }
 
-static int token_binary_search(cache *stream, tokendata top[], size_t len ){
-	if ( len == 1 ){
-		return top - tokenstrs;
-	}
-	int result, ret;
-	size_t top_len = len/2;
-	size_t bottom_len = len - top_len;
-	tokendata *bottom = top+top_len;
-
-	ret = cache_strcmp(stream, bottom[0].name, &result);
-	if (ret < 0){ // error
-		return ret;
-	}
-
-	if (result < 0){ // cache > string
-		ret = token_binary_search(stream, top, top_len);
-	}else{ // cache <= string
-		ret = token_binary_search(stream, bottom, bottom_len);
-	}
-	return ret;
-}
-
-int add_variable(token_list *list, cache *stream, int ch){
+static int add_variable(token_list *list, cache *stream, int ch){
 	size_t linenum = cache_getlinenum(stream);
 	size_t charnum = cache_getcharnum(stream)-1; // ch was given
 	size_t size = 16;
@@ -327,6 +314,29 @@ int add_variable(token_list *list, cache *stream, int ch){
 	return token_list_add_dynamic(list, buf, IDENTIFIER, VARIABLE, linenum, charnum);;
 }
 
+static int token_binary_search(cache *stream, tokendata top[], size_t len ){
+	if ( len == 1 ){
+		return top - tokenstrs;
+	}
+	int result, ret;
+	size_t top_len = len/2;
+	size_t bottom_len = len - top_len;
+	tokendata *bottom = top+top_len;
+
+	ret = cache_strcmp(stream, bottom[0].name, &result);
+	if (ret < 0){ // error
+		return ret;
+	}
+
+	if (result < 0){ // cache > string
+		ret = token_binary_search(stream, top, top_len);
+	}else{ // cache <= string
+		ret = token_binary_search(stream, bottom, bottom_len);
+	}
+	return ret;
+}
+
+
 int gettokens(int fd, token_list *list){
 	cache * stream = cache_init(128, fd);
 	int ret = 0;
@@ -360,7 +370,7 @@ int gettokens(int fd, token_list *list){
 			}
 			if ( !ret ) continue; // caught it, start at the top
 		}
-		if ( ret < 0 ) break;
+		if ( ret < EOF ) break; // ERROR
 
 		ch = cache_getc(stream);
 		if ( is_alpha_numeric(ch) || ch == '_' ){
@@ -370,6 +380,10 @@ int gettokens(int fd, token_list *list){
 		}
 		switch (ch){
 		case EOF:
+			ret = tokens_add_eof(list, stream);
+			if ( ret >= 0 ) {
+				ret = EOF;
+			}
 			break;
 		default:
 			fprintf(stderr, "Unkown character %c 0x%02x at %ld\n", ret, ret, cache_getcharnum(stream));

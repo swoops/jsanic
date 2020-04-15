@@ -115,11 +115,6 @@ int cache_step_backcount(cache *c, size_t count){
 	return 0;
 }
 
-int cache_eof(cache *c){
-	if ( c->eof ) return 1;
-	return 0;
-}
-
 int cache_match(cache *c, char *str){
 	int i;
 	int ch, ret;

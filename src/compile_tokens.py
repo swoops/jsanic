@@ -5,7 +5,7 @@ ONAME = "tokens"
 TAB = "\t"
 
 extra_nameids = [
-    "VARIABLE",
+    "VARIABLE", "NID_EOF"
 ]
 types = [
     "WHITESPACE",
@@ -15,6 +15,7 @@ types = [
     "PUNCTUATOR",
     "REGULAREXPRESSION",
     "STRING",
+    "TYPE_EOF",
     "INVALID", # is not kept anyways
 ]
 
