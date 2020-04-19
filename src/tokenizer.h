@@ -26,6 +26,9 @@ typedef enum {
 
 	TOKEN_NUMERIC,
 
+	// strings
+	TOKEN_DOUBLE_QUOTE_STRING, TOKEN_SINGLE_QUOTE_STRING, TOKEN_TILDA_STRING,
+
 	// identifiers
 	TOKEN_VAR, TOKEN_FOR, TOKEN_LET, TOKEN_FUNCTION, TOKEN_RETURN, TOKEN_CATCH,
 	TOKEN_VARRIABLE,
@@ -40,6 +43,9 @@ typedef struct token_list {
 	token *head;
 	token *tail;
 	size_t size;
+	int fd;
+	char *fname;
+	int status; // only set by tokenizer
 	pthread_mutex_t lock;
 } token_list;
 
@@ -57,22 +63,11 @@ int token_list_print_consume(token_list *list);
 token_list * init_token_list();
 
 /*
- * opens fname file readonly, lexes file appending tokens to list closes file
- * automaticly
+ * lexes from list->fd, if ( list->fd < 0 ) it will open list->fanme and lex
+ * from there
  *
- * returns EOF when it reaches EOF
- * <0 return means error
 */
-int gettokens_fromfname(char *fname, token_list *list);
-
-/*
- * lexes from file descriptor returns EOF when it reaches EOF
- *
- * use gettokens_fromfname if you have a real file, use this for stdin or pipes
- *
- * <0 return means error
-*/
-int gettokens_fromfd(int fd, token_list *list);
+void * gettokens(void *list);
 
 /*
  * destroy a token_list, the calling thread should have sole access to the
@@ -89,7 +84,7 @@ void token_list_destroy(token_list *list);
  *
  * returns NULL on failure
 */
-token * token_list_pop(token_list *list);
+token * token_list_pop(token_list *list, int *status);
 
 /*
  * remove token structure from memmory

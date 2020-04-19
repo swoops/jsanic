@@ -1,5 +1,5 @@
 CC = gcc
-CFLAGS = -g -Wall
+CFLAGS = -g -Wall -pthread
 TARGET = jsanic
 SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)

@@ -50,10 +50,18 @@ static void token_list_append(token_list *list, token *tok){
 int token_list_print_consume(token_list *list){
 	char *holder;
 	size_t line=1;
-	token *node = list->head;
-	printf("size: %ld\n", list->size);
-	printf("line   charnum   length  value\n");
-	while ( ( node = token_list_pop(list) ) != NULL){
+	size_t count=0;
+	int ret = 0;
+	token *node;
+	printf("index line   charnum   length  value\n");
+	while (1){
+		node = token_list_pop(list, &ret);
+		if ( !node ){
+			if ( ret ) break;
+			usleep(20);
+			continue;
+		}
+		count++;
 		switch (node->type) {
 			case TOKEN_NEWLINE:
 				holder = "\\n";
@@ -66,18 +74,16 @@ int token_list_print_consume(token_list *list){
 				holder = node->value;
 				break;
 		}
-		printf("%-4ld   %-8ld  %-6ld  %s", line, node->charnum, node->length, holder);
+		printf("%4ld  %-4ld   %-8ld  %-6ld  %s", count, line, node->charnum, node->length, holder);
 		if ( node->type == TOKEN_ERROR ) printf(" -> TOKEN_ERROR");
 		printf("\n");
 		if ( node->type == TOKEN_EOF ){
 			printf("Num of lines: %ld\n", line);
 			printf("EOF size: %ld\n", node->charnum);
-			token_destroy(node);
-			return 0;
 		}
 		token_destroy(node);
 	}
-	return -1;
+	return ret;
 }
 
 
@@ -103,18 +109,22 @@ void token_destroy(token *tok){
 token_list * init_token_list(){
 	token_list * list = (token_list*) malloc(sizeof(token_list));
 	if ( list ) {
+		list->status = 0;
 		list->head = NULL;
 		list->tail = NULL;
+		list->fname = NULL;
 		list->size = 0;
+		list->fd = -1;
 		pthread_mutex_init(&list->lock, NULL);
 	}
 	return list;
 }
 
-token * token_list_pop(token_list *list){
+token * token_list_pop(token_list *list, int *status){
 	token *tok, *newhead;
 	locklist(list);
-	if ( list->size <= 0 ){
+	*status = list->status;
+	if ( list->size == 0 ){
 		unlocklist(list);
 		return NULL;
 	}
@@ -137,9 +147,16 @@ token * token_list_pop(token_list *list){
 	return tok;
 }
 
+void token_list_set_status(token_list *list, int status){
+	locklist(list);
+	list->status = status;
+	unlocklist(list);
+}
+
 void token_list_destroy(token_list *list){
+	int ret;
 	while ( list->size > 0 ){
-		token_destroy( token_list_pop(list) );
+		token_destroy( token_list_pop(list, &ret));
 	}
 	pthread_mutex_destroy(&list->lock);
 	free(list);
@@ -335,6 +352,78 @@ static token * new_token_number(size_t charnum, char *value, size_t len){
 	return tok;
 }
 
+static char * alloc_string(cache *stream, int start, size_t *len){
+	size_t size = 128;
+	int ch;
+	size_t i;
+	char *buf = (char *) malloc(size);
+	int skip = 0;
+	if ( !buf ) {
+		cache_step_back(stream);
+		return NULL;
+	}
+	*len = 0;
+	buf[0] = (char) start;
+	for ( i=1; ; i++ ){
+		ch = cache_getc(stream);
+		if ( i+4 > size ){
+			size*=2;
+			buf = realloc(buf, size);
+			if ( !buf ) {
+				cache_step_backcount(stream, i);
+				return NULL;
+			}
+		}
+		buf[i] = (char) ch;
+
+		if ( skip ){
+			skip = 0;
+		} else if ( ch == '\\' ){
+			skip = 1;
+		} else if ( ch == start ) {
+			break; // found it
+		} else if ( ch < 0 ){
+			i--;
+			cache_step_back(stream);
+			break; // error, just end the string early
+		}
+	}
+	buf[i+1] = 0;
+	*len = i+1;
+	buf = realloc(buf, i+3);
+	if ( !buf ){
+		cache_step_backcount(stream, i);
+		return NULL;
+	}
+	return buf;
+}
+
+static token * new_token_string(cache *stream, int start, size_t charnum){
+	token *tok = init_token();
+	if ( !tok ) return tok;
+	tok->value = alloc_string(stream, start, &tok->length);
+	if ( !tok->value ){
+		free(tok);
+		return NULL;
+	}
+	TOKEN_SETALLOCED(tok);
+	tok->charnum = charnum;
+	switch ( start ){
+		case '"':
+			tok->type = TOKEN_DOUBLE_QUOTE_STRING;
+			break;
+		case '`':
+			tok->type = TOKEN_TILDA_STRING;
+			break;
+		default:
+			tok->type = TOKEN_SINGLE_QUOTE_STRING;
+			break;
+	}
+	tok->type = TOKEN_NUMERIC;
+	return tok;
+
+}
+
 static token * scan_token(cache *stream, int *status){
 	size_t charnum = cache_getcharnum(stream);
 	int ch = cache_getc(stream);
@@ -446,6 +535,12 @@ static token * scan_token(cache *stream, int *status){
 			}
 			break;
 
+		case '\'':
+		case '`':
+		case '"':
+			tok = new_token_string(stream, ch, charnum);
+			if (!tok) *status=MALLOCFAIL;
+			break;
 
 		// identifiers
 
@@ -466,26 +561,40 @@ static token * scan_token(cache *stream, int *status){
 	return tok;
 }
 
-int gettokens_fromfname(char *fname, token_list *list){
-	int ret,fd = open(fname, O_RDONLY);
-	if ( fd < 0 ){
-		return FILEACCESS;
+
+void * gettokens(void *l){
+	token_list *list = (token_list *) l;
+	int closeit = 0;
+	if ( list->fd < 0 ){
+		closeit=1;
+		if ( ! list->fname ) {
+			token_list_set_status(list, ERROR);
+			return NULL;
+		}
+		if ( ( list->fd = open(list->fname, O_RDONLY) ) < 0 ){
+			token_list_set_status(list, IOERROR);
+			return NULL;
+		}
 	}
-	ret = gettokens_fromfd(fd, list);
-	close(fd);
-	return ret;
-}
 
+	cache * stream = cache_init(128, list->fd);
+	if ( !stream ) {
+		token_list_set_status(list, MALLOCFAIL);
+		return NULL;
+	}
 
-int gettokens_fromfd(int fd, token_list *list){
-	cache * stream = cache_init(128, fd);
 	int ret = 0;
 	token *tok;
-	for (;;){
+	while (ret == 0){
 		tok = scan_token(stream, &ret);
 		if ( tok != NULL ) token_list_append(list, tok);
-		if ( ret < 0 ) break;
 	}
+
+	if ( closeit ) {
+		close(list->fd);
+		list->fd = -1;
+	};
 	cache_destroy(stream);
-	return ret;
+	token_list_set_status(list, ret);
+	return NULL;
 }
