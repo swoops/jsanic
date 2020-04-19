@@ -3,14 +3,31 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <assert.h>
+#include <stdio.h>
 
 #include "errorcodes.h"
-#include "tokens.h"
 #include "tokenizer.h"
 #include "cache.h"
 
 #define locklist(x) pthread_mutex_lock(&x->lock)
 #define unlocklist(x) pthread_mutex_unlock(&x->lock)
+
+#define  LINKED   1  <<  0
+#define  HEAD     1  <<  1
+#define  ALLOCED  1  <<  2
+
+#define TOKEN_HASSTR(x) ( x->value != NULL )
+
+#define TOKEN_ISLINKED(x)    ( x->flags & LINKED )
+#define TOKEN_SETLINKED(x)   x->flags |= LINKED
+#define TOKEN_UNSETLINKED(x) x->flags &= ~LINKED
+
+#define TOKEN_ISHEAD(x)  ( x->flags & HEAD )
+#define TOKEN_SETHEAD(x) ( x->flags |= HEAD > 0)
+
+#define TOKEN_ISALLOCED(x)  ( x->flags & ALLOCED )
+#define TOKEN_SETALLOCED(x)   x->flags |= ALLOCED
+#define TOKEN_UNSETALLOCED(x) x->flags &= ~ALLOCED
 
 static void token_list_append(token_list *list, token *tok){
 	assert(tok->next == NULL); // sanity
@@ -31,14 +48,29 @@ static void token_list_append(token_list *list, token *tok){
 }
 
 int token_list_print_consume(token_list *list){
+	char *holder;
+	size_t line=1;
 	token *node = list->head;
 	printf("size: %ld\n", list->size);
 	printf("line   charnum   length  value\n");
 	while ( ( node = token_list_pop(list) ) != NULL){
-		printf("%-4ld   %-8ld  %-6ld  %s\n", node->linenum, node->charnum, node->length, node->value);
-		if ( node->nameid == NID_EOF ){
-			printf(" == EOF ==\n");
-			printf("Num of lines: %ld\n", node->linenum);
+		switch (node->type) {
+			case TOKEN_NEWLINE:
+				holder = "\\n";
+				line++;
+				break;
+			case TOKEN_EOF:
+				holder = "EOF";
+				break;
+			default:
+				holder = node->value;
+				break;
+		}
+		printf("%-4ld   %-8ld  %-6ld  %s", line, node->charnum, node->length, holder);
+		if ( node->type == TOKEN_ERROR ) printf(" -> TOKEN_ERROR");
+		printf("\n");
+		if ( node->type == TOKEN_EOF ){
+			printf("Num of lines: %ld\n", line);
 			printf("EOF size: %ld\n", node->charnum);
 			token_destroy(node);
 			return 0;
@@ -66,37 +98,6 @@ void token_destroy(token *tok){
 			free(tok->value);
 	}
 	free(tok);
-}
-
-static int token_list_add_fromdata(token_list *list, tokendata *data, size_t line, size_t charnum ) {
-	token* tok = init_token();
-	if ( !tok ){
-		return -2;
-	}
-	tok->value = data->name;
-	tok->length = data->length;
-	tok->type = data->type;
-	tok->nameid = data->nameid;
-	tok->linenum = line;
-	tok->charnum = charnum;
-	token_list_append(list, tok);
-	return 0;
-}
-
-static int token_list_add_dynamic(token_list *list, char *value, int type, int nameid, size_t line, size_t charnum) {
-	token* tok = init_token();
-	if ( !tok ){
-		return -2;
-	}
-	TOKEN_SETALLOCED(tok);
-	tok->value = value;
-	tok->length = strlen(value);
-	tok->type = type;
-	tok->nameid = nameid;
-	tok->linenum = line;
-	tok->charnum = charnum;
-	token_list_append(list, tok);
-	return 0;
 }
 
 token_list * init_token_list(){
@@ -144,165 +145,41 @@ void token_list_destroy(token_list *list){
 	free(list);
 }
 
-int is_numeric(int ch){
+static inline int is_numeric(int ch){
 	return ( ch >= '0' && ch <= '9');
 }
 
-int is_lower_alph(int ch){
+static inline int is_lower_alpha(int ch){
 	return ( ch >= 'a' && ch <= 'z' );
 }
 
-int is_upper_alph(int ch){
+static inline int is_upper_alpha(int ch){
 	return ( ch >= 'A' && ch <= 'Z' );
 }
 
-int is_alpha_numeric(int ch){
-	return is_upper_alph(ch) || is_lower_alph(ch) || is_numeric(ch);
+static inline int is_alpha(int ch){
+	return ( is_upper_alpha(ch) || is_lower_alpha(ch) );
 }
 
-static int tokens_add_eof(token_list *list, cache *stream){
-	tokendata data;
-	data.name = "EOF";
-	data.length = 3;
-	data.type = TYPE_EOF;
-	data.nameid = NID_EOF;
-	return token_list_add_fromdata(list, &data, cache_getlinenum(stream), cache_getcharnum(stream));
-}
-
-static int maybe_punctuator(cache *stream, token_list *list, int dataindex){
-	tokendata *data = tokenstrs + dataindex;
-	int result;
-	size_t linenum = cache_getlinenum(stream);
-	size_t charnum = cache_getcharnum(stream);
-	int ret = cache_consume_n_match(stream, data->name, data->length, &result);
-	if (ret < 0) return ret;
-	if ( result == 0 ){
-		token_list_add_fromdata(list, data, linenum, charnum);
-	}
-	return result;
-}
-
-static int maybe_whitespace(cache *stream, token_list *list, int dataindex){
-	int ch = cache_getc(stream);
-	if ( ch < 0 ) {
-		return ch;
-	}
-	if ( ch != tokenstrs[dataindex].name[0] ) {
-		cache_step_back(stream);
-		return 1;
-	}
-	return 0;
-}
-
-static int maybe_keyword(cache *stream, token_list *list, int dataindex){
-	tokendata *data = tokenstrs + dataindex;
-	int result;
-	size_t linenum = cache_getlinenum(stream);
-	size_t charnum = cache_getcharnum(stream);
-	int ret = cache_consume_n_match(stream, data->name, data->length, &result);
-	if ( ret < 0 ) return ret;
-	if ( result == 0 ){
-		// everything matches so far but what if it is "ifvariable" instead of just "if"
-		int ch = cache_getc(stream);
-		if ( ch < EOF ) return ch; // error
-		if ( is_alpha_numeric(ch) || ch == '_' ){ // no good, it is part of a bigger token, so backup
-			cache_step_backcount(stream, data->length+1);
-			return 1;
-		}
-		// we go it :)
-		cache_step_back(stream); // put ch back
-		token_list_add_fromdata( list, data, linenum, charnum);
-	}
-	return result;
-}
-
-static int maybe_numeric(cache *stream, token_list *list) {
-	size_t linenum = cache_getlinenum(stream);
-	size_t charnum = cache_getcharnum(stream);
-	size_t size = 32;
-	int ch;
-	size_t i;
-	ch = cache_getc(stream);
-	if ( ch < 0 ) return ch;
-	if ( ! is_numeric(ch) ) return 0;
-	char *buf = (char *) malloc(size);
-	if ( !buf ) return -2;
-	buf[0] = (char ) ch;
-	for ( i=1,ch=0; ch >= 0; i++){
-		ch = cache_getc(stream);
-		if ( ch < 0 || ! is_alpha_numeric(ch) ) break;
-		if ( i >= size-4 ) {
-			size += 8;
-			buf = realloc(buf, size);
-			if ( !buf ) return -2;
-		}
-		buf[i] = (char ) ch;
-	}
-	buf[i] = 0;
-	buf = realloc(buf, i+2);
-	cache_step_back(stream);
-	return token_list_add_dynamic(list, buf, NUMERIC, NUMBER, linenum, charnum);;
+static inline int is_alpha_numeric(int ch){
+	return is_alpha(ch) || is_numeric(ch);
 }
 
 
-static int maybe_string(cache *stream, token_list *list, int dataindex) {
-	size_t linenum = cache_getlinenum(stream);
-	size_t charnum = cache_getcharnum(stream);
-	int start = cache_getc(stream);
-	tokendata *data = tokenstrs + dataindex;
-	if ( start != data->name[0] ) {
-			cache_step_back(stream);
-			return 1;
-	}
-	int skip = 0;
-	int ch=0;
-	size_t i, size = 32;
-	char *buf = (char *) malloc(size);
-	if ( !buf ) {
-		cache_step_back(stream);
-		return -2;
-	}
-	buf[0] = (char) start;
-	for (i=1; ch>=0; i++){
-		ch = cache_getc(stream);
-		if ( i+4 > size ){
-			size*=2;
-			buf = realloc(buf, size);
-			if ( !buf ) {
-				cache_step_backcount(stream, i+1);
-				return -2;
-			}
-		}
-		buf[i]= (char) ch;
-		if ( skip ) {
-			skip = 0;
-		}else{
-			if ( ch == '\\' ){
-				skip = 1;
-			}else if  ( ch == start ){
-				break;
-			}
-		}
-	}
-	if ( ch < 0 ) {
-		cache_step_backcount(stream, i+1);
-		free(buf);
-		return ch;
-	}
-	buf = realloc(buf, i+4);
-	buf[i+1]=0; // null terminate
-	return token_list_add_dynamic(list, buf, STRING, data->nameid, linenum, charnum);;
-}
-
-static int add_variable(token_list *list, cache *stream, int ch){
-	size_t linenum = cache_getlinenum(stream);
-	size_t charnum = cache_getcharnum(stream)-1; // ch was given
+/*
+ * createes a buffer, reads into the buffer until a non-identifyer char is encounted.
+ *
+ * returns a pointer to the string, or NULL on failure
+ * failure returns the cache to it's original state
+*/
+static char * alloc_identifyer(cache *stream, int ch, size_t *len){
 	size_t size = 16;
 	size_t i;
-	char *buf = (char *) malloc(16);
+	char *buf = (char *) malloc(size);
+	*len = 0;
 	if ( !buf ) {
 		cache_step_back(stream);
-		return -2;
+		return NULL;
 	}
 	buf[0] = (char) ch;
 	for ( i=1; ch>0; i++ ){
@@ -314,49 +191,280 @@ static int add_variable(token_list *list, cache *stream, int ch){
 			size*=2;
 			buf = realloc(buf, size);
 			if ( !buf ) {
-				cache_step_backcount(stream, i+1);
-				return -2;
+				cache_step_backcount(stream, i);
+				return NULL;
 			}
 		}
 		buf[i] = (char) ch;
 	}
-	if ( ch < 0 ){
-		cache_step_backcount(stream, i+1);
+	if ( ch < EOF ){
+		cache_step_backcount(stream, i);
 		free(buf);
-		return ch;
+		return NULL;
 	}
-	buf[i+1] = 0;
-	buf = realloc(buf, i+4);
+	buf[i] = 0;
+	*len = i;
+	buf = realloc(buf, i+3);
 	if ( !buf ){
-		cache_step_backcount(stream, i+1);
-		return -2;
+		cache_step_backcount(stream, i);
+		return NULL;
 	}
 	cache_step_back(stream);
-	return token_list_add_dynamic(list, buf, IDENTIFIER, VARIABLE, linenum, charnum);;
+	return buf;
 }
 
-static int token_binary_search(cache *stream, tokendata top[], size_t len ){
-	if ( len == 1 ){
-		return top - tokenstrs;
+static char * alloc_numeric(cache *stream, int ch, size_t *len){
+	// TODO HANDLE 0xXX 0bBB 0oOO formats
+	size_t size = 16;
+	size_t i;
+	char *buf = (char *) malloc(size);
+	*len = 0;
+	if ( !buf ) {
+		cache_step_back(stream);
+		return NULL;
 	}
-	int result, ret;
-	size_t top_len = len/2;
-	size_t bottom_len = len - top_len;
-	tokendata *bottom = top+top_len;
-
-	ret = cache_strcmp(stream, bottom[0].name, &result);
-	if (ret < 0){ // error
-		return ret;
+	buf[0] = (char) ch;
+	for ( i=1; ch>0; i++ ){
+		ch = cache_getc(stream);
+		if ( ! is_numeric(ch) ){
+			break;
+		}
+		if ( i+4 > size ){
+			size*=2;
+			buf = realloc(buf, size);
+			if ( !buf ) {
+				cache_step_backcount(stream, i);
+				return NULL;
+			}
+		}
+		buf[i] = (char) ch;
 	}
+	if ( ch < EOF ){
+		cache_step_backcount(stream, i);
+		free(buf);
+		return NULL;
+	}
+	buf[i] = 0;
+	*len = i;
+	buf = realloc(buf, i+3);
+	if ( !buf ){
+		cache_step_backcount(stream, i);
+		return NULL;
+	}
+	cache_step_back(stream);
+	return buf;
+}
 
-	if (result < 0){ // cache > string
-		ret = token_binary_search(stream, top, top_len);
-	}else{ // cache <= string
-		ret = token_binary_search(stream, bottom, bottom_len);
+
+static token * new_token_static(char *value, size_t type, size_t length, size_t charnum){
+	token *tok = init_token();
+	if ( !tok ) return tok;
+	tok->value = value;
+	tok->length = length;
+	tok->type = type;
+	tok->charnum = charnum;
+	return tok;
+}
+
+static token * new_token_error(int ch, size_t charnum){
+	char buf[2];
+	token *tok = init_token();
+	if ( !tok ) return tok;
+	buf[0] = (char) ch;
+	buf[1] = '\x00';
+
+	TOKEN_SETALLOCED(tok);
+	if (( tok->value = strdup(buf) ) == NULL){
+		free(tok);
+		return NULL;
+	}
+	tok->length = 1;
+	tok->type = TOKEN_ERROR;
+	tok->charnum = charnum;
+	return tok;
+}
+
+static size_t get_identifyer_type(char *buf){
+	size_t ret = TOKEN_VARRIABLE;
+	switch (buf[0]){
+		case 'v':
+			if ( strcmp("var", buf) == 0)
+				ret = TOKEN_VAR;
+			break;
+		case 'f':
+			if ( strcmp("for", buf) == 0)
+				ret = TOKEN_FOR;
+			else if ( strcmp("function", buf) == 0)
+				ret = TOKEN_FUNCTION;
+			break;
+		case 'l':
+			if ( strcmp("let", buf) == 0)
+				ret = TOKEN_LET;
+			break;
+		case 'r':
+			if ( strcmp("return", buf) == 0)
+				ret = TOKEN_RETURN;
+			break;
+		case 'c':
+			if ( strcmp("catch", buf) == 0)
+				ret = TOKEN_CATCH;
+			break;
 	}
 	return ret;
 }
 
+static token * new_token_identifyer(size_t charnum, char *value, size_t len){
+	token *tok = init_token();
+	if ( !tok ) return tok;
+	TOKEN_SETALLOCED(tok);
+	tok->length = len;
+	tok->value = value;
+	tok->type = get_identifyer_type(value);
+	tok->charnum = charnum;
+	return tok;
+}
+
+static token * new_token_number(size_t charnum, char *value, size_t len){
+	token *tok = init_token();
+	if ( !tok ) return tok;
+	TOKEN_SETALLOCED(tok);
+	tok->length = len;
+	tok->value = value;
+	tok->charnum = charnum;
+	tok->type = TOKEN_NUMERIC;
+	return tok;
+}
+
+static token * scan_token(cache *stream, int *status){
+	size_t charnum = cache_getcharnum(stream);
+	int ch = cache_getc(stream);
+	token *tok = NULL;
+	*status=0;
+	if ( is_alpha(ch) || ch == '_'){
+		size_t len;
+		char *buf = alloc_identifyer(stream, ch, &len);
+		if ( !buf ){
+			*status = MALLOCFAIL;
+			return NULL;
+		}
+		tok = new_token_identifyer(charnum, buf, len);
+		if ( !tok ){
+			free(buf);
+			*status = MALLOCFAIL;
+			return NULL;
+		}
+		return tok;
+	} else if ( is_numeric(ch) ){
+		size_t len;
+		char *buf = alloc_numeric(stream, ch, &len);
+		if ( !buf ){
+			*status = MALLOCFAIL;
+			return NULL;
+		}
+		tok = new_token_number(charnum, buf, len);
+		if ( !tok ){
+			free(buf);
+			*status = MALLOCFAIL;
+			return NULL;
+		}
+		return tok;
+	}
+	switch (ch) {
+		// simple single characters
+		case ' ':
+		case '\t':
+			break;
+		case '{':
+			tok = new_token_static("{", TOKEN_OPEN_CURLY, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case '}':
+			tok = new_token_static("}", TOKEN_CLOSE_CURLY, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case '(':
+			tok = new_token_static("(", TOKEN_OPEN_PAREN, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case ')':
+			tok = new_token_static(")", TOKEN_CLOSE_PAREN, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case '[':
+			tok = new_token_static("[", TOKEN_OPEN_BRACE, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case ']':
+			tok = new_token_static("[", TOKEN_CLOSE_BRACE, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case ',':
+			tok = new_token_static(",", TOKEN_COMMA, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case '.':
+			tok = new_token_static(".", TOKEN_DOT, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case ';':
+			tok = new_token_static(";", TOKEN_SEMICOLON, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+
+		// 1 or more chars
+		case '=':
+			ch = cache_getc(stream);
+			if ( ch == '='){
+				ch = cache_getc(stream);
+				if ( ch == '='){
+					tok = new_token_static("===", TOKEN_EQUAL_EQUAL_EQUAL, 3, charnum);
+				} else {
+					cache_step_back(stream);
+					tok = new_token_static("==", TOKEN_EQUAL_EQUAL, 2, charnum);
+				}
+			} else{
+				cache_step_back(stream);
+				tok = new_token_static("=", TOKEN_EQUAL, 1, charnum);
+			}
+			break;
+		case '+':
+			ch = cache_getc(stream);
+			if ( ch == '+'){
+				tok = new_token_static("++", TOKEN_INCREMENT, 2, charnum);
+			} else{
+				cache_step_back(stream);
+				tok = new_token_static("+", TOKEN_ADD, 1, charnum);
+			}
+			break;
+		case '<':
+			ch = cache_getc(stream);
+			if ( ch == '='){
+				tok = new_token_static("<=", TOKEN_LESSTHAN_OR_EQUAL, 2, charnum);
+			} else{
+				cache_step_back(stream);
+				tok = new_token_static("<", TOKEN_LESSTHAN, 1, charnum);
+			}
+			break;
+
+
+		// identifiers
+
+		// special chars
+		case '\n':
+			tok = new_token_static("\n", TOKEN_NEWLINE, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case EOF:
+			*status = EOF;
+			tok = new_token_static("\xff", TOKEN_EOF, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		default:
+			tok = new_token_error(ch, charnum);
+			if (!tok) *status = MALLOCFAIL;
+	}
+	return tok;
+}
 
 int gettokens_fromfname(char *fname, token_list *list){
 	int ret,fd = open(fname, O_RDONLY);
@@ -368,58 +476,15 @@ int gettokens_fromfname(char *fname, token_list *list){
 	return ret;
 }
 
+
 int gettokens_fromfd(int fd, token_list *list){
 	cache * stream = cache_init(128, fd);
 	int ret = 0;
-	int type;
-	int ch;
-	while (ret >= 0){
-		ret = token_binary_search(
-			stream, tokenstrs, (sizeof(tokenstrs) / sizeof(tokenstrs[0]))
-		);
-		if ( ret > 0 ){ // we likely found it, but need to look deeper
-			type = tokenstrs[ret].type;
-			switch (type){
-				case PUNCTUATOR:
-					ret = maybe_punctuator(stream, list, ret);
-					break;
-				case WHITESPACE:
-					ret = maybe_whitespace(stream, list, ret);
-					break;
-				case KEYWORD:
-					ret = maybe_keyword(stream, list, ret);
-					break;
-				case NUMERIC:
-					ret = maybe_numeric(stream, list);
-					break;
-				case STRING:
-					ret = maybe_string(stream, list, ret);
-					break;
-				default:
-					fprintf(stderr, "Can't handle typeid %d on %s yet\n", tokenstrs[ret].type, tokenstrs[ret].name);
-					abort();
-			}
-			if ( !ret ) continue; // caught it, start at the top
-		}
-		if ( ret < EOF ) break; // ERROR
-
-		ch = cache_getc(stream);
-		if ( is_alpha_numeric(ch) || ch == '_' ){
-			// assuming it is a variable
-			ret = add_variable(list, stream, ch);
-			if (ret <= 0 ) continue;
-		}
-		switch (ch){
-		case EOF:
-			ret = tokens_add_eof(list, stream);
-			if ( ret >= 0 ) {
-				ret = EOF;
-			}
-			break;
-		default:
-			fprintf(stderr, "Unkown character 0x%02x at %ld\n", ch, cache_getcharnum(stream));
-			break;
-		}
+	token *tok;
+	for (;;){
+		tok = scan_token(stream, &ret);
+		if ( tok != NULL ) token_list_append(list, tok);
+		if ( ret < 0 ) break;
 	}
 	cache_destroy(stream);
 	return ret;

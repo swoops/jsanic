@@ -8,10 +8,6 @@ size_t cache_getcharnum(cache *c){
 	return c->charnum;
 }
 
-size_t cache_getlinenum(cache *c){
-	return c->linenum;
-}
-
 cache * cache_init(size_t size, int fd){
 	cache *c = (cache *) malloc(sizeof(cache));
 	if ( !c ) return NULL;
@@ -29,7 +25,6 @@ cache * cache_init(size_t size, int fd){
 	c->start = 0;
 	c->size = 0;
 	c->behind = 0;
-	c->linenum = 1;
 	c->real_size = size;
 	c->fd = fd;
 	return c;
@@ -60,9 +55,6 @@ int cache_getc(cache *c){
 		c->index++;
 		c->behind--;
 		c->charnum++;
-		if ( ret == '\n' ) {
-			c->linenum++;
-		}
 		return ret;
 	}
 
@@ -76,17 +68,11 @@ int cache_getc(cache *c){
 	c->index++;
 	if ( c->size < c->real_size ) {
 		c->size++;
-		if ( ret == '\n' ) {
-			c->linenum++;
-		}
 		return ret;
 	}
 
 	// if we hit buf max, so we have to move things arround
 	c->index %= c->real_size; // at this point real_size == size
-	if ( ret == '\n' ) {
-		c->linenum++;
-	}
 	return ret;
 }
 
@@ -96,9 +82,6 @@ int cache_step_back(cache *c){
 	c->behind++;
 	c->charnum--;
 	c->index--;
-	if ( c->buf[c->index] == '\n' ){
-		c->linenum--;
-	}
 	return 0;
 }
 
@@ -115,87 +98,22 @@ int cache_step_backcount(cache *c, size_t count){
 	return 0;
 }
 
-int cache_match(cache *c, char *str){
-	int i;
-	int ch, ret;
-	// no one shoudl be able too look to far into the future
-	size_t max = c->real_size/2;
-
-	for (i=0; str[i] && i<max; i++){
-		ch = cache_getc(c);
-		if ( ch == EOF || str[i] != ch){
-			break;
-		}
-	}
-	if ( str[i] == '\x00' ){
-	// reached end of string, we matched
-		ret = i;
-	} else if ( ch < 0 && ch != EOF ) {
-		ret = -1;
-	} else {
-		ret = 0; // not a match
-	}
-	if ( ret >= 0 && cache_step_backcount(c, i+1) < 0) {
-		return ERROR;
-	}
-	return ret;
-}
-
-static int cache_general_match(cache *c, char *str, size_t n, int *result, int consumematches){
-	size_t i;
+int cache_str_match(cache *c, char *str){
 	int ch, test;
-	size_t max = n;
-	*result=0;
-
-	if ( max == 0 ){
-		max = c->real_size/2;
-	}
-
+	size_t i;
+	size_t max = c->real_size/2;
 	for (i=0; i<max; i++){
-		ch = cache_getc(c);
 		test = str[i];
+		if ( test == 0 ) return 0; // matches
 
-		// EOF or error
-		if ( ch < 0 ) {
-			if ( ch != EOF ){
-				return ERROR;
-			}
-			// EOF handling
-			if ( i == 0 ) {
-				return EOF; // nothing to compare
-			}
-			if ( test == 0 || n == i+1){
-				// ran out of compare material and str at same time, apparently a match
-				break;
-			}
-		}else if ( ch > test ){  // cache is bigger
-			i++;
-			*result = 1;
-			break;
-		}else if ( ch < test ){ // cache is smaller
-			i++;
-			*result = -1;
-			break;
-		}
+		ch = cache_getc(c);
+		if ( ch < EOF ) break;
+		if ( ch != test ) break;
 	}
-
-	if ( *result  || !consumematches ){
-		if ( cache_step_backcount(c, i) < 0) {
-			return ERROR;
-		}
-	}
+	// failed to match so step back
+	if( cache_step_backcount(c, i+1) < 0)
+		return ERROR;
+	if ( i == max || ch < EOF )
+		return ERROR;
 	return 0;
 }
-
-int cache_consume_n_match(cache *c, char *str, size_t n, int *result){
-	return cache_general_match(c, str, n, result, 1);
-}
-
-int cache_strcmp(cache *c, char *str, int *result){
-	return cache_general_match(c, str, 0, result, 0);
-}
-
-int cache_strncmp(cache *c, char *str, size_t n, int *result){
-	return cache_general_match(c, str, n, result, 0);
-}
-

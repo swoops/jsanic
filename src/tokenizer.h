@@ -5,31 +5,36 @@ struct  token {
 	char *value;
 	size_t length;
 	size_t charnum;
-	size_t linenum;
 	int type;
-	int nameid;
 	unsigned int flags;
 	token * next;
 	token * prev;
 };
 
+
 typedef struct token token;
-#define  LINKED   1  <<  0
-#define  HEAD     1  <<  1
-#define  ALLOCED  1  <<  2
 
-#define TOKEN_HASSTR(x) ( x->value != NULL )
+typedef enum {
+	// Single-character tokens.
+	TOKEN_OPEN_PAREN, TOKEN_CLOSE_PAREN, TOKEN_OPEN_BRACE, TOKEN_CLOSE_BRACE,
+	TOKEN_COMMA, TOKEN_DOT, TOKEN_SEMICOLON, TOKEN_OPEN_CURLY, TOKEN_CLOSE_CURLY,
 
-#define TOKEN_ISLINKED(x)    ( x->flags & LINKED )
-#define TOKEN_SETLINKED(x)   x->flags |= LINKED
-#define TOKEN_UNSETLINKED(x) x->flags &= ~LINKED
+	//
+	TOKEN_EQUAL, TOKEN_EQUAL_EQUAL, TOKEN_EQUAL_EQUAL_EQUAL,
+	TOKEN_ADD, TOKEN_INCREMENT,
+	TOKEN_LESSTHAN_OR_EQUAL, TOKEN_LESSTHAN,
 
-#define TOKEN_ISHEAD(x)  ( x->flags & HEAD )
-#define TOKEN_SETHEAD(x) ( x->flags |= HEAD > 0)
+	TOKEN_NUMERIC,
 
-#define TOKEN_ISALLOCED(x)  ( x->flags & ALLOCED )
-#define TOKEN_SETALLOCED(x)   x->flags |= ALLOCED
-#define TOKEN_UNSETALLOCED(x) x->flags &= ~ALLOCED
+	// identifiers
+	TOKEN_VAR, TOKEN_FOR, TOKEN_LET, TOKEN_FUNCTION, TOKEN_RETURN, TOKEN_CATCH,
+	TOKEN_VARRIABLE,
+
+	// special chars
+	TOKEN_ERROR, TOKEN_NEWLINE,
+	TOKEN_EOF
+} tokentype;
+
 
 typedef struct token_list {
 	token *head;
