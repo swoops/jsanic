@@ -85,8 +85,8 @@ int token_list_stats_consume(token_list *list){
 			printf("characters:    %8ld\n", token_charnum);
 			printf("loops:         %8ld\n", token_loops);
 			printf("variables:     %8ld\n", token_vars);
-			printf("if's:          %8ld\n", token_ifs);
-			printf("terinary:      %8ld\n", token_terinaries);
+			printf("ifs:           %8ld\n", token_ifs);
+			printf("ternary:       %8ld\n", token_terinaries);
 			printf("unkown tokens: %8ld\n", token_unknown);
 		}
 		if ( !node ){
@@ -111,6 +111,9 @@ int token_list_stats_consume(token_list *list){
 				break;
 			case TOKEN_VARRIABLE:
 				token_vars++;
+				break;
+			case TOKEN_IF:
+				token_ifs++;
 				break;
 			case TOKEN_QUESTIONMARK:
 				token_terinaries++;
