@@ -47,13 +47,86 @@ static void token_list_append(token_list *list, token *tok){
 	unlocklist(list);
 }
 
-int token_list_print_consume(token_list *list){
-	char *holder;
-	size_t line=1;
-	size_t count=0;
+static char * token_printable(token *tok){
+	char * ret;
+	switch (tok->type) {
+		case TOKEN_NEWLINE:
+			ret = "\\n";
+			break;
+		case TOKEN_EOF:
+			ret = "EOF";
+			break;
+		default:
+			ret = tok->value;
+			break;
+	}
+	return ret;
+}
+
+int token_list_stats_consume(token_list *list){
+	size_t token_count=1;
+	size_t token_lines = 1;
+	size_t token_unknown = 0;
+	size_t token_loops = 0;
+	size_t token_vars = 0;
+	size_t token_ifs = 0;
+	size_t token_charnum = 0;
+	size_t token_terinaries = 0;
 	int ret = 0;
 	token *node;
-	printf("index line   charnum   length  value\n");
+	while (1){
+		node = token_list_pop(list, &ret);
+		if ( token_count % 137 == 0 || (!node && ret) ){
+			if ( token_count > 137 ){
+				printf("\e[8F");
+			}
+			printf("count:         %8ld\n", token_count);
+			printf("lines:         %8ld\n", token_lines);
+			printf("characters:    %8ld\n", token_charnum);
+			printf("loops:         %8ld\n", token_loops);
+			printf("variables:     %8ld\n", token_vars);
+			printf("if's:          %8ld\n", token_ifs);
+			printf("terinary:      %8ld\n", token_terinaries);
+			printf("unkown tokens: %8ld\n", token_unknown);
+		}
+		if ( !node ){
+			if ( ret ) break;
+			usleep(20);
+			continue;
+		}
+
+		token_count++;
+		if ( node->charnum > token_charnum ){
+			token_charnum = node->charnum;
+		}
+		switch ( node->type ){
+			case TOKEN_ERROR:
+				token_unknown++;
+				break;
+			case TOKEN_NEWLINE:
+				token_lines++;
+				break;
+			case TOKEN_FOR:
+				token_loops++;
+				break;
+			case TOKEN_VARRIABLE:
+				token_vars++;
+				break;
+			case TOKEN_QUESTIONMARK:
+				token_terinaries++;
+				break;
+		}
+		token_destroy(node);
+	}
+	return ret;
+}
+
+int token_list_print_consume(token_list *list){
+	size_t line=1;
+	size_t token_count=0;
+	int ret = 0;
+	token *node;
+	printf("#     line  charnum  length value\n");
 	while (1){
 		node = token_list_pop(list, &ret);
 		if ( !node ){
@@ -61,26 +134,25 @@ int token_list_print_consume(token_list *list){
 			usleep(20);
 			continue;
 		}
-		count++;
-		switch (node->type) {
-			case TOKEN_NEWLINE:
-				holder = "\\n";
-				line++;
+		token_count++;
+		printf(
+			"%4ld  %-4ld   %-8ld  %-6ld  %s",
+			token_count, line, node->charnum, node->length,
+			token_printable(node)
+		);
+		switch (node->type){
+			case TOKEN_ERROR:
+				printf(" -> TOKEN_ERROR");
 				break;
 			case TOKEN_EOF:
-				holder = "EOF";
+				printf("\nNum of lines: %ld\n", line);
+				printf("EOF size: %ld\n", node->charnum);
 				break;
-			default:
-				holder = node->value;
+			case TOKEN_NEWLINE:
+				line++;
 				break;
 		}
-		printf("%4ld  %-4ld   %-8ld  %-6ld  %s", count, line, node->charnum, node->length, holder);
-		if ( node->type == TOKEN_ERROR ) printf(" -> TOKEN_ERROR");
 		printf("\n");
-		if ( node->type == TOKEN_EOF ){
-			printf("Num of lines: %ld\n", line);
-			printf("EOF size: %ld\n", node->charnum);
-		}
 		token_destroy(node);
 	}
 	return ret;
@@ -304,15 +376,19 @@ static token * new_token_error(int ch, size_t charnum){
 static size_t get_identifyer_type(char *buf){
 	size_t ret = TOKEN_VARRIABLE;
 	switch (buf[0]){
-		case 'v':
-			if ( strcmp("var", buf) == 0)
-				ret = TOKEN_VAR;
+		case 'c':
+			if ( strcmp("catch", buf) == 0)
+				ret = TOKEN_CATCH;
 			break;
 		case 'f':
 			if ( strcmp("for", buf) == 0)
 				ret = TOKEN_FOR;
 			else if ( strcmp("function", buf) == 0)
 				ret = TOKEN_FUNCTION;
+			break;
+		case 'i':
+			if ( strcmp("if", buf) == 0)
+				ret = TOKEN_IF;
 			break;
 		case 'l':
 			if ( strcmp("let", buf) == 0)
@@ -322,9 +398,9 @@ static size_t get_identifyer_type(char *buf){
 			if ( strcmp("return", buf) == 0)
 				ret = TOKEN_RETURN;
 			break;
-		case 'c':
-			if ( strcmp("catch", buf) == 0)
-				ret = TOKEN_CATCH;
+		case 'v':
+			if ( strcmp("var", buf) == 0)
+				ret = TOKEN_VAR;
 			break;
 	}
 	return ret;
@@ -491,8 +567,16 @@ static token * scan_token(cache *stream, int *status){
 			tok = new_token_static(",", TOKEN_COMMA, 1, charnum);
 			if (!tok) *status=ERROR;
 			break;
+		case '?':
+			tok = new_token_static("}", TOKEN_QUESTIONMARK, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
 		case '.':
 			tok = new_token_static(".", TOKEN_DOT, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case ':':
+			tok = new_token_static(":", TOKEN_COLON, 1, charnum);
 			if (!tok) *status=ERROR;
 			break;
 		case ';':
@@ -516,10 +600,23 @@ static token * scan_token(cache *stream, int *status){
 				tok = new_token_static("=", TOKEN_EQUAL, 1, charnum);
 			}
 			break;
+		case '-':
+			ch = cache_getc(stream);
+			if ( ch == '-'){
+				tok = new_token_static("--", TOKEN_DECRAMENT, 2, charnum);
+			} else if ( ch == '='){
+				tok = new_token_static("-=", TOKEN_MINUS_EQUAL, 2, charnum);
+			} else{
+				cache_step_back(stream);
+				tok = new_token_static("-", TOKEN_SUBTRACT, 1, charnum);
+			}
+			break;
 		case '+':
 			ch = cache_getc(stream);
 			if ( ch == '+'){
 				tok = new_token_static("++", TOKEN_INCREMENT, 2, charnum);
+			} else if ( ch == '='){
+				tok = new_token_static("+=", TOKEN_PLUS_EQUAL, 2, charnum);
 			} else{
 				cache_step_back(stream);
 				tok = new_token_static("+", TOKEN_ADD, 1, charnum);

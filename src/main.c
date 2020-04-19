@@ -38,7 +38,7 @@ int main(int argc, char *argv[]){
 		token_list_destroy(list);
 		return -1;
 	}
-	token_list_print_consume(list);
+	token_list_stats_consume(list);
 
 	if ( pthread_join(lexer_tid, &ret) != 0 ){
 		fprintf(stderr, "[!!] Join failed\n");
