@@ -15,13 +15,15 @@ struct  token {
 typedef struct token token;
 
 typedef enum {
+	TOKEN_NONE = 0,
+
 	// Single-character tokens.
 	TOKEN_OPEN_PAREN, TOKEN_CLOSE_PAREN, TOKEN_OPEN_BRACE, TOKEN_CLOSE_BRACE,
 	TOKEN_COMMA, TOKEN_DOT, TOKEN_COLON, TOKEN_SEMICOLON, TOKEN_OPEN_CURLY, TOKEN_CLOSE_CURLY, TOKEN_QUESTIONMARK,
 
 	//
 	TOKEN_EQUAL, TOKEN_EQUAL_EQUAL, TOKEN_EQUAL_EQUAL_EQUAL,
-	TOKEN_ADD, TOKEN_INCREMENT, TOKEN_PLUS_EQUAL, TOKEN_SUBTRACT, TOKEN_MINUS_EQUAL, TOKEN_DECRAMENT,
+	TOKEN_ADD, TOKEN_INCREMENT, TOKEN_PLUS_EQUAL, TOKEN_SUBTRACT, TOKEN_MINUS_EQUAL, TOKEN_DECREMENT,
 	TOKEN_LESSTHAN_OR_EQUAL, TOKEN_LESSTHAN,
 
 	TOKEN_NUMERIC,
@@ -87,6 +89,11 @@ void token_list_destroy(token_list *list);
  * returns NULL on failure
 */
 token * token_list_pop(token_list *list, int *status);
+
+/*
+ * peeks the type of the next token in the list, does not consume the token
+*/
+size_t token_list_peek_type(token_list *list);
 
 /*
  * remove token structure from memmory

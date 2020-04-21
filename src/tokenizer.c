@@ -47,6 +47,7 @@ static void token_list_append(token_list *list, token *tok){
 	unlocklist(list);
 }
 
+
 static char * token_printable(token *tok){
 	char * ret;
 	switch (tok->type) {
@@ -121,6 +122,16 @@ int token_list_stats_consume(token_list *list){
 		}
 		token_destroy(node);
 	}
+	return ret;
+}
+
+size_t token_list_peek_type(token_list *list){
+	size_t ret = TOKEN_NONE;
+	locklist(list);
+	if ( list->size > 0 ){
+		ret = list->head->type;
+	}
+	unlocklist(list);
 	return ret;
 }
 
@@ -498,9 +509,7 @@ static token * new_token_string(cache *stream, int start, size_t charnum){
 			tok->type = TOKEN_SINGLE_QUOTE_STRING;
 			break;
 	}
-	tok->type = TOKEN_NUMERIC;
 	return tok;
-
 }
 
 static token * scan_token(cache *stream, int *status){
@@ -606,7 +615,7 @@ static token * scan_token(cache *stream, int *status){
 		case '-':
 			ch = cache_getc(stream);
 			if ( ch == '-'){
-				tok = new_token_static("--", TOKEN_DECRAMENT, 2, charnum);
+				tok = new_token_static("--", TOKEN_DECREMENT, 2, charnum);
 			} else if ( ch == '='){
 				tok = new_token_static("-=", TOKEN_MINUS_EQUAL, 2, charnum);
 			} else{
