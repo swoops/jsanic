@@ -1,6 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h> // exit
 #include <unistd.h>
+
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+
 #include "errorcodes.h"
 #include "token_output.h"
 
@@ -23,7 +28,8 @@ int main(int argc, char *argv[]){
 	int show_stats = 0;
 	int show_tokens = 0;
 	int use_stdin = 0;
-	char *fname = NULL;
+	char *fname;
+	int fd = 0; // default to stdin
 
 	int opt;
 	while ( ( opt = getopt(argc, argv, "sti") ) != -1){
@@ -54,28 +60,31 @@ int main(int argc, char *argv[]){
 		return ERROR;
 	}
 
-	if (!use_stdin && optind >= argc) {
-		fprintf(stderr, "Need file if not using stdin\n");
-		return ERROR;
-	}else {
+	if ( ! use_stdin ){
+		if (optind >= argc) {
+			fprintf(stderr, "Need file if not using stdin\n");
+			return ERROR;
+		}
 		fname = argv[optind];
-		printf("using fname: %s\n", fname);
+		if ( ( fd = open(fname, O_RDONLY) ) < 0 ){
+			fprintf(stderr, "Can't open %s for reading\n", fname);
+			return IOERROR;
+		}
 	}
 
 
 	// do what the user asked
-	if ( use_stdin ) {
-		if ( show_stats ){
-			print_token_stats(0);
-		} else if ( show_tokens ){
-			print_tokens(0);
-		}else {
-			fprintf(stderr, "Beautifier not implemented yet\n");
-			return -1;
-		}
-	}else{
-		fprintf(stderr, "file not implemented yet, sorry\n");
+	if ( show_stats ){
+		print_token_stats(fd);
+	} else if ( show_tokens ){
+		print_tokens(fd);
+	}else {
+		fprintf(stderr, "Beautifier not implemented yet\n");
 		return -1;
+	}
+
+	if ( fd > 0 ){
+		close(fd);
 	}
 
 	return 0;
