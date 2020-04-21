@@ -12,5 +12,6 @@
 #define IOERROR -3
 #define FILEACCESS -4
 #define MALLOCFAIL -5
+#define ERROR_PTHREAD_FAIL -5
 
 #endif

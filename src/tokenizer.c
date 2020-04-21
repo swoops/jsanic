@@ -48,83 +48,6 @@ static void token_list_append(token_list *list, token *tok){
 }
 
 
-static char * token_printable(token *tok){
-	char * ret;
-	switch (tok->type) {
-		case TOKEN_NEWLINE:
-			ret = "\\n";
-			break;
-		case TOKEN_EOF:
-			ret = "EOF";
-			break;
-		default:
-			ret = tok->value;
-			break;
-	}
-	return ret;
-}
-
-int token_list_stats_consume(token_list *list){
-	size_t token_count=1;
-	size_t token_lines = 1;
-	size_t token_unknown = 0;
-	size_t token_loops = 0;
-	size_t token_vars = 0;
-	size_t token_ifs = 0;
-	size_t token_charnum = 0;
-	size_t token_terinaries = 0;
-	int ret = 0;
-	token *node;
-	while (1){
-		node = token_list_pop(list, &ret);
-		if ( token_count % 137 == 0 || (!node && ret) ){
-			if ( token_count > 137 ){
-				printf("\e[8F");
-			}
-			printf("count:         %8ld\n", token_count);
-			printf("lines:         %8ld\n", token_lines);
-			printf("characters:    %8ld\n", token_charnum);
-			printf("loops:         %8ld\n", token_loops);
-			printf("variables:     %8ld\n", token_vars);
-			printf("ifs:           %8ld\n", token_ifs);
-			printf("ternary:       %8ld\n", token_terinaries);
-			printf("unkown tokens: %8ld\n", token_unknown);
-		}
-		if ( !node ){
-			if ( ret ) break;
-			usleep(20);
-			continue;
-		}
-
-		token_count++;
-		if ( node->charnum > token_charnum ){
-			token_charnum = node->charnum;
-		}
-		switch ( node->type ){
-			case TOKEN_ERROR:
-				token_unknown++;
-				break;
-			case TOKEN_NEWLINE:
-				token_lines++;
-				break;
-			case TOKEN_FOR:
-				token_loops++;
-				break;
-			case TOKEN_VARRIABLE:
-				token_vars++;
-				break;
-			case TOKEN_IF:
-				token_ifs++;
-				break;
-			case TOKEN_QUESTIONMARK:
-				token_terinaries++;
-				break;
-		}
-		token_destroy(node);
-	}
-	return ret;
-}
-
 size_t token_list_peek_type(token_list *list){
 	size_t ret = TOKEN_NONE;
 	locklist(list);
@@ -135,45 +58,7 @@ size_t token_list_peek_type(token_list *list){
 	return ret;
 }
 
-int token_list_print_consume(token_list *list){
-	size_t line=1;
-	size_t token_count=0;
-	int ret = 0;
-	token *node;
-	printf("#     line  charnum  length value\n");
-	while (1){
-		node = token_list_pop(list, &ret);
-		if ( !node ){
-			if ( ret ) break;
-			usleep(20);
-			continue;
-		}
-		token_count++;
-		printf(
-			"%4ld  %-4ld   %-8ld  %-6ld  %s",
-			token_count, line, node->charnum, node->length,
-			token_printable(node)
-		);
-		switch (node->type){
-			case TOKEN_ERROR:
-				printf(" -> TOKEN_ERROR");
-				break;
-			case TOKEN_EOF:
-				printf("\nNum of lines: %ld\n", line);
-				printf("EOF size: %ld\n", node->charnum);
-				break;
-			case TOKEN_NEWLINE:
-				line++;
-				break;
-		}
-		printf("\n");
-		token_destroy(node);
-	}
-	return ret;
-}
-
-
-static token * init_token(){
+static token * token_init(){
 	token * ret = (token *) malloc(sizeof(token));
 	if ( ret == NULL ) return ret;
 	ret->value = NULL;
@@ -192,15 +77,15 @@ void token_destroy(token *tok){
 	free(tok);
 }
 
-token_list * init_token_list(){
+token_list * token_list_init(int fd){
+	if ( fd < 0 ) return NULL;
 	token_list * list = (token_list*) malloc(sizeof(token_list));
 	if ( list ) {
 		list->status = 0;
 		list->head = NULL;
 		list->tail = NULL;
-		list->fname = NULL;
 		list->size = 0;
-		list->fd = -1;
+		list->fd = fd;
 		pthread_mutex_init(&list->lock, NULL);
 	}
 	return list;
@@ -360,7 +245,7 @@ static char * alloc_numeric(cache *stream, int ch, size_t *len){
 
 
 static token * new_token_static(char *value, size_t type, size_t length, size_t charnum){
-	token *tok = init_token();
+	token *tok = token_init();
 	if ( !tok ) return tok;
 	tok->value = value;
 	tok->length = length;
@@ -371,7 +256,7 @@ static token * new_token_static(char *value, size_t type, size_t length, size_t 
 
 static token * new_token_error(int ch, size_t charnum){
 	char buf[2];
-	token *tok = init_token();
+	token *tok = token_init();
 	if ( !tok ) return tok;
 	buf[0] = (char) ch;
 	buf[1] = '\x00';
@@ -421,7 +306,7 @@ static size_t get_identifyer_type(char *buf){
 }
 
 static token * new_token_identifyer(size_t charnum, char *value, size_t len){
-	token *tok = init_token();
+	token *tok = token_init();
 	if ( !tok ) return tok;
 	TOKEN_SETALLOCED(tok);
 	tok->length = len;
@@ -432,7 +317,7 @@ static token * new_token_identifyer(size_t charnum, char *value, size_t len){
 }
 
 static token * new_token_number(size_t charnum, char *value, size_t len){
-	token *tok = init_token();
+	token *tok = token_init();
 	if ( !tok ) return tok;
 	TOKEN_SETALLOCED(tok);
 	tok->length = len;
@@ -489,7 +374,7 @@ static char * alloc_string(cache *stream, int start, size_t *len){
 }
 
 static token * new_token_string(cache *stream, int start, size_t charnum){
-	token *tok = init_token();
+	token *tok = token_init();
 	if ( !tok ) return tok;
 	tok->value = alloc_string(stream, start, &tok->length);
 	if ( !tok->value ){
@@ -672,18 +557,12 @@ static token * scan_token(cache *stream, int *status){
 
 
 void * gettokens(void *l){
+	int ret = 0;
+	token *tok = NULL;
 	token_list *list = (token_list *) l;
-	int closeit = 0;
 	if ( list->fd < 0 ){
-		closeit=1;
-		if ( ! list->fname ) {
-			token_list_set_status(list, ERROR);
-			return NULL;
-		}
-		if ( ( list->fd = open(list->fname, O_RDONLY) ) < 0 ){
-			token_list_set_status(list, IOERROR);
-			return NULL;
-		}
+		token_list_set_status(list, IOERROR);
+		return NULL;
 	}
 
 	cache * stream = cache_init(128, list->fd);
@@ -692,17 +571,11 @@ void * gettokens(void *l){
 		return NULL;
 	}
 
-	int ret = 0;
-	token *tok;
 	while (ret == 0){
 		tok = scan_token(stream, &ret);
 		if ( tok != NULL ) token_list_append(list, tok);
 	}
 
-	if ( closeit ) {
-		close(list->fd);
-		list->fd = -1;
-	};
 	cache_destroy(stream);
 	token_list_set_status(list, ret);
 	return NULL;

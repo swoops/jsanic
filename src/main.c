@@ -1,9 +1,8 @@
-#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h> // exit
 #include <unistd.h>
-#include "tokenizer.h"
 #include "errorcodes.h"
+#include "token_output.h"
 
 
 void die(const char * msg){
@@ -21,12 +20,10 @@ void usage(char *name){
 }
 
 int main(int argc, char *argv[]){
-	void *ret;
-	pthread_t lexer_tid;
-	pthread_attr_t attr;
 	int show_stats = 0;
 	int show_tokens = 0;
 	int use_stdin = 0;
+	char *fname = NULL;
 
 	int opt;
 	while ( ( opt = getopt(argc, argv, "sti") ) != -1){
@@ -46,56 +43,40 @@ int main(int argc, char *argv[]){
 		}
 	}
 
+	// validate options
 	if ( show_stats && show_tokens ){
 		fprintf(stderr, "Cain't show both tokens and stats\n");
 		usage(argv[0]);
-		return -1;
+		return ERROR;
 	} else if ( use_stdin == 0 && optind >= argc ){
 		fprintf(stderr, "Need a file to parse\n");
 		usage(argv[0]);
+		return ERROR;
+	}
+
+	if (!use_stdin && optind >= argc) {
+		fprintf(stderr, "Need file if not using stdin\n");
+		return ERROR;
+	}else {
+		fname = argv[optind];
+		printf("using fname: %s\n", fname);
+	}
+
+
+	// do what the user asked
+	if ( use_stdin ) {
+		if ( show_stats ){
+			print_token_stats(0);
+		} else if ( show_tokens ){
+			print_tokens(0);
+		}else {
+			fprintf(stderr, "Beautifier not implemented yet\n");
+			return -1;
+		}
+	}else{
+		fprintf(stderr, "file not implemented yet, sorry\n");
 		return -1;
 	}
 
-	token_list * list = init_token_list();
-	if ( use_stdin ){
-		list->fd = 0;
-	} else {
-		list->fname = argv[optind];
-	}
-
-	if ( !list ) {
-		fprintf(stderr, "Failed init token_list\n");
-		return -1;
-	}
-
-	if ( pthread_attr_init(&attr) != 0){
-		perror("Failed pthread_attr_init: ");
-		token_list_destroy(list);
-		return -1;
-	}
-
-	if ( pthread_create(&lexer_tid, &attr, gettokens, (void *) list) != 0){
-		fprintf(stderr, "[!!] pthread_create failed\n");
-		token_list_destroy(list);
-		return -1;
-	}
-
-	if ( show_stats )
-		token_list_stats_consume(list);
-	else if ( show_tokens )
-		token_list_print_consume(list);
-	else
-		printf("Can't make anything pretty yet :(\n");
-
-	if ( pthread_join(lexer_tid, &ret) != 0 ){
-		fprintf(stderr, "[!!] Join failed\n");
-		token_list_destroy(list);
-		return -1;
-	}
-
-	if ( pthread_attr_destroy(&attr) != 0 ){
-		fprintf(stderr, "Failed to destroy pthread attr\n");
-	}
-	token_list_destroy(list);
 	return 0;
 }

@@ -46,7 +46,6 @@ typedef struct token_list {
 	token *tail;
 	size_t size;
 	int fd;
-	char *fname;
 	int status; // only set by tokenizer
 	pthread_mutex_t lock;
 } token_list;
@@ -54,17 +53,9 @@ typedef struct token_list {
 #define LIST_LOCK 1 << 0
 
 /*
- * consumes tokens in list, printing each
- * return 0 on success
-*/
-int token_list_print_consume(token_list *list);
-
-int token_list_stats_consume(token_list *list);
-
-/*
  * generate a empty token list.
 */
-token_list * init_token_list();
+token_list * token_list_init(int fd);
 
 /*
  * lexes from list->fd, if ( list->fd < 0 ) it will open list->fanme and lex
