@@ -198,7 +198,7 @@ int token_list_stats_consume(token_list *list){
 			case TOKEN_FOR:
 				token_loops++;
 				break;
-			case TOKEN_VARRIABLE:
+			case TOKEN_VARIABLE:
 				token_vars++;
 				break;
 			case TOKEN_IF:

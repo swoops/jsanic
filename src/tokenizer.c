@@ -38,7 +38,11 @@ static int token_list_append(token_list *list, token *tok){
 	}
 	list->size++;
 	TOKEN_SETLINKED(tok);
-	ret = list->status;
+	if ( tok->type == TOKEN_EOF ){
+		ret = list->status = EOF;
+	}else{
+		ret = list->status;
+	}
 	unlocklist(list);
 	return ret;
 }
@@ -194,7 +198,7 @@ static char * alloc_identifyer(cache *stream, int ch, size_t *len){
 	buf[0] = (char) ch;
 	for ( i=1; ch>0; i++ ){
 		ch = cache_getc(stream);
-		if ( ! is_alpha_numeric(ch) && ch != '_' ){
+		if ( ! is_alpha_numeric(ch) && ch != '_' && ch != '$' ){
 			break;
 		}
 		if ( i+4 > size ){
@@ -295,7 +299,7 @@ static token * new_token_error(int ch, size_t charnum){
 }
 
 static size_t get_identifyer_type(char *buf){
-	size_t ret = TOKEN_VARRIABLE;
+	size_t ret = TOKEN_VARIABLE;
 	switch (buf[0]){
 		case 'c':
 			if ( strcmp("catch", buf) == 0)
@@ -419,22 +423,175 @@ static token * new_token_string(cache *stream, int start, size_t charnum){
 	return tok;
 }
 
-static token * scan_token(cache *stream, int *status){
+
+static char * alloc_line_comment(cache *stream, size_t *len){
+	size_t i;
+	int ch = '/';
+	size_t size = 90;
+	char *buf = (char *) malloc(size);
+	if ( !buf ) return NULL;
+	buf[0] = ch;
+	buf[1] = ch;
+	for (i=2; ch!='\n' && ch > 0; i++){
+		ch = cache_getc(stream);
+		if ( i+3 > size ){
+			size += 16;
+			buf = (char *) realloc(buf, size);
+			if ( !buf ) return NULL;
+		}
+		buf[i] = ch;
+	}
+	if ( ch < 0 ){
+		// did not get everything, but save what we did get and step cache back
+		// to prev position before error
+		cache_step_back(stream);
+		i--;
+	}
+	buf = (char *) realloc(buf, i+3);
+	if ( !buf ) return NULL;
+	*len = i;
+	buf[i] = '\x00';
+	return buf;
+}
+
+static token * new_token_line_comment(cache *stream, size_t charnum){
+	token *tok = token_init();
+	if ( !tok ) return tok;
+	tok->value = alloc_line_comment(stream, &tok->length);
+	if ( !tok->value ){
+		free(tok);
+		return NULL;
+	}
+	TOKEN_SETALLOCED(tok);
+	tok->charnum = charnum;
+	tok->type = TOKEN_LINE_COMMENT;
+	return tok;
+}
+
+static char * alloc_multi_line_comment(cache *stream, size_t *len){
+	size_t i;
+	int prev = '/';
+	int ch = '*';
+	size_t size = 90;
+	char *buf = (char *) malloc(size);
+	if ( !buf ) return NULL;
+	buf[0] = (char) prev;
+	buf[1] = (char) ch;
+	for (i=2; ch > 0; i++){
+		ch = cache_getc(stream);
+		if ( i+3 > size ){
+			size += 16;
+			buf = (char *) realloc(buf, size);
+			if ( !buf ) return NULL;
+		}
+		buf[i] = ch;
+		if ( prev == '*' && ch == '/' ) break;
+		prev = ch;
+	}
+	if ( ch < 0 ) {
+		// did not finish, but save what we have and restore cache
+		cache_step_back(stream);
+		i--;
+	}
+	buf = (char *) realloc(buf, i+3);
+	if ( !buf ) return NULL;
+	*len = i;
+	buf[i] = '\x00';
+	return buf;
+
+}
+
+static char * alloc_regex(cache *stream, size_t *len){
+	size_t i;
+	int skip = 0;
+	int end_slash = 0;
+	size_t size = 64;
+	char *buf = (char *) malloc(size);
+	int ch = '/';
+	if ( !buf ) return NULL;
+	buf[0] = ch;
+	for (i=1; ch > 0; i++){
+		ch = cache_getc(stream);
+		if ( i+3 > size ){
+			size += 16;
+			buf = (char *) realloc(buf, size);
+			if ( !buf ) return NULL;
+		}
+		buf[i] = ch;
+		if ( end_slash ){
+			// flags
+			if ( ! is_alpha(ch) ){
+				break;
+			}
+		}else {
+			// looking for ending /
+			if ( skip ){
+				skip = 0;
+			}else if ( ch == '\\' ){
+				skip = 1;
+			}else if ( ch == '/' ){
+				end_slash = 1;
+			}else {
+				skip = 0;
+			}
+
+		}
+	}
+	if ( ch < 0 ) {
+		// did not finish, but save what we have and restore cache
+		cache_step_back(stream);
+		i--;
+	}
+	buf = (char *) realloc(buf, i+3);
+	if ( !buf ) return NULL;
+	*len = i;
+	buf[i] = '\x00';
+	return buf;
+
+}
+
+static token * new_regex(cache *stream, size_t charnum){
+	token *tok = token_init();
+	if ( !tok ) return tok;
+	tok->value = alloc_regex(stream, &tok->length);
+	if ( !tok->value ){
+		free(tok);
+		return NULL;
+	}
+	TOKEN_SETALLOCED(tok);
+	tok->charnum = charnum;
+	tok->type = TOKEN_MULTI_LINE_COMMENT;
+	return tok;
+}
+
+
+static token * new_token_multi_line_comment(cache *stream, size_t charnum){
+	token *tok = token_init();
+	if ( !tok ) return tok;
+	tok->value = alloc_multi_line_comment(stream, &tok->length);
+	if ( !tok->value ){
+		free(tok);
+		return NULL;
+	}
+	TOKEN_SETALLOCED(tok);
+	tok->charnum = charnum;
+	tok->type = TOKEN_MULTI_LINE_COMMENT;
+	return tok;
+}
+
+static token * scan_token(cache *stream, size_t prev_type){
 	size_t charnum = cache_getcharnum(stream);
 	int ch = cache_getc(stream);
 	token *tok = NULL;
-	*status=0;
-	if ( is_alpha(ch) || ch == '_'){
+	if ( is_alpha(ch) || ch == '_' || ch == '$'){
 		size_t len;
 		char *buf = alloc_identifyer(stream, ch, &len);
 		if ( !buf ){
-			*status = MALLOCFAIL;
 			return NULL;
 		}
 		tok = new_token_identifyer(charnum, buf, len);
 		if ( !tok ){
 			free(buf);
-			*status = MALLOCFAIL;
 			return NULL;
 		}
 		return tok;
@@ -442,121 +599,192 @@ static token * scan_token(cache *stream, int *status){
 		size_t len;
 		char *buf = alloc_numeric(stream, ch, &len);
 		if ( !buf ){
-			*status = MALLOCFAIL;
 			return NULL;
 		}
 		tok = new_token_number(charnum, buf, len);
 		if ( !tok ){
 			free(buf);
-			*status = MALLOCFAIL;
 			return NULL;
 		}
 		return tok;
 	}
+#define SIMPLE_TOKEN(value, name) new_token_static(value, name, sizeof(value), charnum);
 	switch (ch) {
 		// simple single characters
+		case '\r':
+			tok = SIMPLE_TOKEN("\r ", TOKEN_CARRAGE_RETURN);
+			break;
 		case ' ':
-			tok = new_token_static("\t", TOKEN_SPACE, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN(" ", TOKEN_SPACE);
 			break;
 		case '\t':
-			tok = new_token_static("\t", TOKEN_TAB, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN("\t", TOKEN_TAB);
 			break;
 		case '\n':
-			tok = new_token_static("\n", TOKEN_NEWLINE, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN("\n", TOKEN_NEWLINE);
 			break;
 		case '{':
-			tok = new_token_static("{", TOKEN_OPEN_CURLY, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN("{", TOKEN_OPEN_CURLY);
 			break;
 		case '}':
-			tok = new_token_static("}", TOKEN_CLOSE_CURLY, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN("}", TOKEN_CLOSE_CURLY);
 			break;
 		case '(':
-			tok = new_token_static("(", TOKEN_OPEN_PAREN, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN("(", TOKEN_OPEN_PAREN);
 			break;
 		case ')':
-			tok = new_token_static(")", TOKEN_CLOSE_PAREN, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN(")", TOKEN_CLOSE_PAREN);
 			break;
 		case '[':
-			tok = new_token_static("[", TOKEN_OPEN_BRACE, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN("[", TOKEN_OPEN_BRACE);
 			break;
 		case ']':
-			tok = new_token_static("[", TOKEN_CLOSE_BRACE, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN("]", TOKEN_CLOSE_BRACE);
 			break;
 		case ',':
-			tok = new_token_static(",", TOKEN_COMMA, 1, charnum);
-			if (!tok) *status=ERROR;
-			break;
-		case '?':
-			tok = new_token_static("}", TOKEN_QUESTIONMARK, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN(",", TOKEN_COMMA);
 			break;
 		case '.':
-			tok = new_token_static(".", TOKEN_DOT, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN(".", TOKEN_DOT);
 			break;
 		case ':':
-			tok = new_token_static(":", TOKEN_COLON, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN(":", TOKEN_COLON);
 			break;
 		case ';':
-			tok = new_token_static(";", TOKEN_SEMICOLON, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN(";", TOKEN_SEMICOLON);
+			break;
+		case '!':
+			tok = SIMPLE_TOKEN("!", TOKEN_NOT);
 			break;
 
 		// 1 or more chars
+		case '?':
+			ch = cache_getc(stream);
+			if ( ch == '?' ){
+				tok = SIMPLE_TOKEN("??", TOKEN_NULL_COALESCING);
+			}else {
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN("?", TOKEN_QUESTIONMARK);
+			}
+			break;
+		case '/':
+			ch = cache_getc(stream); // /X
+			if ( ch == '/' ){
+				tok = new_token_line_comment(stream, charnum);
+			}else if ( ch == '*' ){
+				tok = new_token_multi_line_comment(stream, charnum);
+			}else if ( prev_type != TOKEN_VARIABLE && prev_type != TOKEN_NUMERIC && prev_type != TOKEN_CLOSE_PAREN ){
+				cache_step_back(stream);
+				tok = new_regex(stream, charnum);
+			}else if ( ch == '=' ){
+				tok = SIMPLE_TOKEN("/=", TOKEN_DIVIDE_ASSIGN);
+			}else{
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN("/", TOKEN_DIVIDE);
+			}
+			break;
 		case '=':
 			ch = cache_getc(stream);
 			if ( ch == '='){
 				ch = cache_getc(stream);
 				if ( ch == '='){
-					tok = new_token_static("===", TOKEN_EQUAL_EQUAL_EQUAL, 3, charnum);
+					tok = SIMPLE_TOKEN("===", TOKEN_EQUAL_EQUAL_EQUAL);
 				} else {
 					cache_step_back(stream);
-					tok = new_token_static("==", TOKEN_EQUAL_EQUAL, 2, charnum);
+					tok = SIMPLE_TOKEN("==", TOKEN_EQUAL_EQUAL);
 				}
 			} else{
 				cache_step_back(stream);
-				tok = new_token_static("=", TOKEN_EQUAL, 1, charnum);
+				tok = SIMPLE_TOKEN("=", TOKEN_EQUAL);
 			}
 			break;
 		case '-':
 			ch = cache_getc(stream);
 			if ( ch == '-'){
-				tok = new_token_static("--", TOKEN_DECREMENT, 2, charnum);
+				tok = SIMPLE_TOKEN("--", TOKEN_DECREMENT);
 			} else if ( ch == '='){
-				tok = new_token_static("-=", TOKEN_MINUS_EQUAL, 2, charnum);
+				tok = SIMPLE_TOKEN("-=", TOKEN_MINUS_EQUAL);
 			} else{
 				cache_step_back(stream);
-				tok = new_token_static("-", TOKEN_SUBTRACT, 1, charnum);
+				tok = SIMPLE_TOKEN("-", TOKEN_SUBTRACT);
+			}
+			break;
+		case '*':
+			ch = cache_getc(stream);
+			if ( ch == '*'){
+				tok = SIMPLE_TOKEN("**", TOKEN_EXPONENT);
+			} else if ( ch == '='){
+				tok = SIMPLE_TOKEN("*=", TOKEN_MULTIPLY_ASSIGN);
+			} else{
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN("*", TOKEN_MULTIPLY);
 			}
 			break;
 		case '+':
 			ch = cache_getc(stream);
 			if ( ch == '+'){
-				tok = new_token_static("++", TOKEN_INCREMENT, 2, charnum);
+				tok = SIMPLE_TOKEN("++", TOKEN_INCREMENT);
 			} else if ( ch == '='){
-				tok = new_token_static("+=", TOKEN_PLUS_EQUAL, 2, charnum);
+				tok = SIMPLE_TOKEN("+=", TOKEN_PLUS_EQUAL);
 			} else{
 				cache_step_back(stream);
-				tok = new_token_static("+", TOKEN_ADD, 1, charnum);
+				tok = SIMPLE_TOKEN("+", TOKEN_ADD);
+			}
+			break;
+		case '|':
+			ch = cache_getc(stream);
+			if ( ch == '='){
+				tok = SIMPLE_TOKEN("|=", TOKEN_BITWISE_OR_ASSIGN);
+			} else if ( ch == '|'){
+				tok = SIMPLE_TOKEN("||", TOKEN_LOGICAL_OR);
+			} else{
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN("|", TOKEN_BITWISE_OR);
+			}
+			break;
+		case '&':
+			ch = cache_getc(stream);
+			if ( ch == '='){
+				tok = SIMPLE_TOKEN("&=", TOKEN_BITWISE_AND_ASSIGN);
+			} else if ( ch == '&'){
+				tok = SIMPLE_TOKEN("&&", TOKEN_LOGICAL_AND);
+			} else{
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN("&", TOKEN_BITWISE_AND);
 			}
 			break;
 		case '<':
-			ch = cache_getc(stream);
+			ch = cache_getc(stream); // <X
 			if ( ch == '='){
-				tok = new_token_static("<=", TOKEN_LESSTHAN_OR_EQUAL, 2, charnum);
-			} else{
+				tok = SIMPLE_TOKEN("<=", TOKEN_LESSTHAN_OR_EQUAL);
+			} else if ( ch == '<'){
+				ch = cache_getc(stream); // <<X
+				if ( ch == '=' ){
+					tok = SIMPLE_TOKEN("<<=", TOKEN_BITSHIFT_LEFT_ASSIGN);
+				}
 				cache_step_back(stream);
-				tok = new_token_static("<", TOKEN_LESSTHAN, 1, charnum);
+				tok = SIMPLE_TOKEN("<<", TOKEN_BITSHIFT_LEFT);
+			}else{
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN("<", TOKEN_LESSTHAN);
+			}
+			break;
+		case '>':
+			ch = cache_getc(stream); // >X
+			if ( ch == '='){
+				tok = SIMPLE_TOKEN(">=", TOKEN_GREATERTHAN_OR_EQUAL);
+			} else if ( ch == '>'){
+				ch = cache_getc(stream); // >>X
+				if ( ch == '=' ){
+					tok = SIMPLE_TOKEN(">>=", TOKEN_BITSHIFT_RIGHT_ASSIGN);
+				} else if ( ch == '>' ){
+					tok = SIMPLE_TOKEN(">>>", TOKEN_ZERO_FILL_RIGHT_SHIFT);
+				}
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN(">>", TOKEN_SIGNED_BITSHIFT_RIGHT);
+			}else{
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN(">", TOKEN_GREATER_THAN);
 			}
 			break;
 
@@ -564,25 +792,22 @@ static token * scan_token(cache *stream, int *status){
 		case '`':
 		case '"':
 			tok = new_token_string(stream, ch, charnum);
-			if (!tok) *status=MALLOCFAIL;
 			break;
 
 		case EOF:
-			*status = EOF;
-			tok = new_token_static("\xff", TOKEN_EOF, 1, charnum);
-			if (!tok) *status=ERROR;
+			tok = SIMPLE_TOKEN("\xff", TOKEN_EOF);
 			break;
 		default:
 			tok = new_token_error(ch, charnum);
-			if (!tok) *status = MALLOCFAIL;
+#undef SIMPLE_TOKEN
 	}
 	return tok;
 }
 
 
 void * gettokens(void *l){
-	int ret = 0;
-	int finished = 0;
+	int ret = TOKEN_NONE;
+	size_t prev_type;
 	token *tok = NULL;
 	token_list *list = (token_list *) l;
 	if ( list->fd < 0 ){
@@ -596,15 +821,27 @@ void * gettokens(void *l){
 		return NULL;
 	}
 
-	while (ret == 0 && finished == 0){
-		tok = scan_token(stream, &ret);
+	while ( ret == 0 ){
+		tok = scan_token(stream, prev_type);
 		if ( tok != NULL ) {
-			finished = token_list_append(list, tok);
+			switch ( tok->type ){
+				case TOKEN_TAB:
+				case TOKEN_SPACE:
+				case TOKEN_NEWLINE:
+				case TOKEN_CARRAGE_RETURN:
+					break;
+				default:
+					prev_type = tok->type;
+					break;
+			}
+			ret = token_list_append(list, tok);
+		} else {
+			ret = ERROR;
 		}
 	}
-	if ( finished ) ret = -10;
 
 	cache_destroy(stream);
-	token_list_set_status(list, ret);
+	// must set a status <0 to indicate completion
+	token_list_set_status(list, ret == EOF ? EOF : ERROR);
 	return NULL;
 }

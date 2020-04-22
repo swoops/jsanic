@@ -81,7 +81,10 @@ int cache_step_back(cache *c){
 	if ( c->behind >= c->size ) return ERROR;
 	c->behind++;
 	c->charnum--;
-	c->index--;
+	if ( c->index == 0 )
+		c->index = c->size-1;
+	else
+		c->index--;
 	return 0;
 }
 
