@@ -64,9 +64,20 @@ int print_token_stats(int fd){
 	return 0;
 }
 
+int print_token_unknown(int fd){
+	return threaded_printer(fd, token_print_consume_unkown);
+	return 0;
+}
+
 static char * token_printable(token *tok){
 	char * ret;
 	switch (tok->type) {
+		case TOKEN_TAB:
+			ret = "\\t";
+			break;
+		case TOKEN_SPACE:
+			ret = "<<space>>";
+			break;
 		case TOKEN_NEWLINE:
 			ret = "\\n";
 			break;
@@ -112,6 +123,30 @@ int token_list_print_consume(token_list *list){
 				break;
 		}
 		printf("\n");
+		token_destroy(node);
+	}
+	return ret;
+}
+
+int token_print_consume_unkown(token_list *list){
+	size_t count = 0;
+	char * value;
+	int ret = 0;
+	token *node;
+	while (count < 30){
+		node = token_list_pop(list, &ret);
+		if ( !node ){
+			if ( ret ) break;
+			usleep(20);
+			continue;
+		}
+		if ( node->type == TOKEN_ERROR ){
+			value = node->value;
+			count++;
+			printf("[%ld] char: %ld uknown token: 0x%02x '%s'\n",
+				count, node->charnum, value[0], value
+			);
+		}
 		token_destroy(node);
 	}
 	return ret;

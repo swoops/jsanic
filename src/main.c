@@ -28,17 +28,21 @@ int main(int argc, char *argv[]){
 	int show_stats = 0;
 	int show_tokens = 0;
 	int use_stdin = 0;
+	int show_unknown = 0;
 	char *fname;
 	int fd = 0; // default to stdin
 
 	int opt;
-	while ( ( opt = getopt(argc, argv, "sti") ) != -1){
+	while ( ( opt = getopt(argc, argv, "stiu") ) != -1){
 		switch (opt){
 			case 's':
 				show_stats = 1;
 				break;
 			case 't':
 				show_tokens = 1;
+				break;
+			case 'u':
+				show_unknown = 1;
 				break;
 			case 'i':
 				use_stdin = 1;
@@ -50,8 +54,8 @@ int main(int argc, char *argv[]){
 	}
 
 	// validate options
-	if ( show_stats && show_tokens ){
-		fprintf(stderr, "Cain't show both tokens and stats\n");
+	if ( show_stats + show_tokens + show_unknown > 1){
+		fprintf(stderr, "Pick only one of u,t,s options");
 		usage(argv[0]);
 		return ERROR;
 	} else if ( use_stdin == 0 && optind >= argc ){
@@ -78,6 +82,8 @@ int main(int argc, char *argv[]){
 		print_token_stats(fd);
 	} else if ( show_tokens ){
 		print_tokens(fd);
+	} else if ( show_unknown ){
+		print_token_unknown(fd);
 	}else {
 		fprintf(stderr, "Beautifier not implemented yet\n");
 		return -1;

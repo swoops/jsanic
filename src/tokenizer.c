@@ -9,25 +9,22 @@
 #define locklist(x) pthread_mutex_lock(&x->lock)
 #define unlocklist(x) pthread_mutex_unlock(&x->lock)
 
+// token flags and macros
 #define  LINKED   1  <<  0
 #define  HEAD     1  <<  1
 #define  ALLOCED  1  <<  2
 
-#define TOKEN_HASSTR(x) ( x->value != NULL )
-
-#define TOKEN_ISLINKED(x)    ( x->flags & LINKED )
-#define TOKEN_SETLINKED(x)   x->flags |= LINKED
-#define TOKEN_UNSETLINKED(x) x->flags &= ~LINKED
-
-#define TOKEN_ISHEAD(x)  ( x->flags & HEAD )
-#define TOKEN_SETHEAD(x) ( x->flags |= HEAD > 0)
-
 #define TOKEN_ISALLOCED(x)  ( x->flags & ALLOCED )
+#define TOKEN_ISLINKED(x)     ( x->flags & LINKED )
+#define TOKEN_SETLINKED(x)    x->flags |= LINKED
+#define TOKEN_UNSETLINKED(x)  x->flags &= ~LINKED
+#define TOKEN_ISHEAD(x)       ( x->flags & HEAD )
 #define TOKEN_SETALLOCED(x)   x->flags |= ALLOCED
-#define TOKEN_UNSETALLOCED(x) x->flags &= ~ALLOCED
 
-static void token_list_append(token_list *list, token *tok){
+static int token_list_append(token_list *list, token *tok){
+	int ret = 0;
 	assert(tok->next == NULL); // sanity
+
 	locklist(list);
 	token *tail = list->tail;
 	list->tail = tok;
@@ -41,7 +38,9 @@ static void token_list_append(token_list *list, token *tok){
 	}
 	list->size++;
 	TOKEN_SETLINKED(tok);
+	ret = list->status;
 	unlocklist(list);
+	return ret;
 }
 
 
@@ -69,7 +68,7 @@ void token_destroy(token *tok){
 	assert(!TOKEN_ISLINKED(tok));
 	assert(!TOKEN_ISHEAD(tok));
 	if ( TOKEN_ISALLOCED(tok) ){
-			free(tok->value);
+		free(tok->value);
 	}
 	free(tok);
 }
@@ -121,8 +120,34 @@ void token_list_set_status(token_list *list, int status){
 	unlocklist(list);
 }
 
+static void token_list_wait_done(token_list *list){
+	locklist(list);
+	if (list->status < 0){
+		// tokenizer is done already
+		unlocklist(list);
+		return;
+	}
+
+	if ( list->status == 0 ){
+		// need to tell it to stop
+		list->status = 1;
+	}
+
+	// wait for tokenizer to finish
+	while (1){
+		unlocklist(list);
+		usleep(10);
+		locklist(list);
+		if ( list->status < 0 ){
+			unlocklist(list);
+			break;
+		}
+	}
+}
+
 void token_list_destroy(token_list *list){
 	int ret;
+	token_list_wait_done(list);
 	while ( list->size > 0 ){
 		token_destroy( token_list_pop(list, &ret));
 	}
@@ -431,7 +456,16 @@ static token * scan_token(cache *stream, int *status){
 	switch (ch) {
 		// simple single characters
 		case ' ':
+			tok = new_token_static("\t", TOKEN_SPACE, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
 		case '\t':
+			tok = new_token_static("\t", TOKEN_TAB, 1, charnum);
+			if (!tok) *status=ERROR;
+			break;
+		case '\n':
+			tok = new_token_static("\n", TOKEN_NEWLINE, 1, charnum);
+			if (!tok) *status=ERROR;
 			break;
 		case '{':
 			tok = new_token_static("{", TOKEN_OPEN_CURLY, 1, charnum);
@@ -533,13 +567,6 @@ static token * scan_token(cache *stream, int *status){
 			if (!tok) *status=MALLOCFAIL;
 			break;
 
-		// identifiers
-
-		// special chars
-		case '\n':
-			tok = new_token_static("\n", TOKEN_NEWLINE, 1, charnum);
-			if (!tok) *status=ERROR;
-			break;
 		case EOF:
 			*status = EOF;
 			tok = new_token_static("\xff", TOKEN_EOF, 1, charnum);
@@ -555,6 +582,7 @@ static token * scan_token(cache *stream, int *status){
 
 void * gettokens(void *l){
 	int ret = 0;
+	int finished = 0;
 	token *tok = NULL;
 	token_list *list = (token_list *) l;
 	if ( list->fd < 0 ){
@@ -568,10 +596,13 @@ void * gettokens(void *l){
 		return NULL;
 	}
 
-	while (ret == 0){
+	while (ret == 0 && finished == 0){
 		tok = scan_token(stream, &ret);
-		if ( tok != NULL ) token_list_append(list, tok);
+		if ( tok != NULL ) {
+			finished = token_list_append(list, tok);
+		}
 	}
+	if ( finished ) ret = -10;
 
 	cache_destroy(stream);
 	token_list_set_status(list, ret);

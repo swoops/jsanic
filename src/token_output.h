@@ -16,3 +16,5 @@ int print_tokens(int fd);
 */
 int token_list_print_consume(token_list *list);
 int token_list_stats_consume(token_list *list);
+int token_print_consume_unkown(token_list *list);
+int print_token_unknown(int fd);

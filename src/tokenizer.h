@@ -15,7 +15,13 @@ struct  token {
 typedef struct token token;
 
 typedef enum {
+
+	// special chars
 	TOKEN_NONE = 0,
+	TOKEN_ERROR, TOKEN_EOF,
+
+	// whiltespace
+	TOKEN_TAB, TOKEN_SPACE, TOKEN_NEWLINE,
 
 	// Single-character tokens.
 	TOKEN_OPEN_PAREN, TOKEN_CLOSE_PAREN, TOKEN_OPEN_BRACE, TOKEN_CLOSE_BRACE,
@@ -33,20 +39,23 @@ typedef enum {
 
 	// identifiers
 	TOKEN_VAR, TOKEN_FOR, TOKEN_LET, TOKEN_FUNCTION, TOKEN_RETURN, TOKEN_CATCH,
-	TOKEN_IF, TOKEN_VARRIABLE, 
-
-	// special chars
-	TOKEN_ERROR, TOKEN_NEWLINE,
-	TOKEN_EOF
+	TOKEN_IF, TOKEN_VARRIABLE,
 } tokentype;
 
 
+/*
+ * token_list.status
+ * <0   tokenizer is done, no more appending, safe to remove
+ * >0   tells tokenizer to stop, but it has not done so yet
+ * ==0  tokenizer is still going
+ * == EOF done and processed to EOF
+*/
 typedef struct token_list {
 	token *head;
 	token *tail;
 	size_t size;
 	int fd;
-	int status; // only set by tokenizer
+	int status;
 	pthread_mutex_t lock;
 } token_list;
 
