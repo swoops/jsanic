@@ -1,7 +1,21 @@
 # jsanic
 
-Fast JavaScript beautifier, eventually.
-js-beautify
+Fast (incomplete) JavaScript lexer. Eventually a beautifyer (hopefully).
+
+```js
+> /usr/bin/time -f 'seconds: %e mem: %M kb' ps aux > /dev/null
+seconds: 0.01 mem: 3428 kb
+> /usr/bin/time -f 'seconds: %e mem: %M kb' ./jsanic -s /tmp/js_file.js
+count:          2752225
+lines:            96680
+characters:     5603600
+loops:            32773
+variables:            0
+ifs:               1103
+ternary:           6302
+unkown tokens:        0
+seconds: 4.23 mem: 1920 kb
+```
 
 This will be fast, but probably not very pretty. I am not a developer. I am
 mostly writing this for experience in more complicated programming problems.
@@ -9,7 +23,7 @@ Hopefully something useable comes out of it. Use at your own risk.
 
 # why
 
-While testing a website, I ran into a 5.4 MB JavaScript file. My system is not
+While testing a website, I ran into a 5.6 MB JavaScript file. My system is not
 weak, it has an Intel i7 and 16G of ram and I run a minimal desktop. Yet every
 beautifier I threw at this file crashed after prolonged execution. Eventually
 js-beautify (a great tool) got it after I closed all other resource hogs

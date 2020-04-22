@@ -504,6 +504,7 @@ static char * alloc_multi_line_comment(cache *stream, size_t *len){
 static char * alloc_regex(cache *stream, size_t *len){
 	size_t i;
 	int skip = 0;
+	int in_square = 0;
 	int end_slash = 0;
 	size_t size = 64;
 	char *buf = (char *) malloc(size);
@@ -523,10 +524,21 @@ static char * alloc_regex(cache *stream, size_t *len){
 			if ( ! is_alpha(ch) ){
 				break;
 			}
+		} else if ( in_square ){
+			// trying to escape the square...
+			if ( skip ){
+				skip = 0;
+			}else if (ch == '\\'){
+				skip=1;
+			}else if (ch == ']'){
+				in_square = 0;
+			}
 		}else {
 			// looking for ending /
 			if ( skip ){
 				skip = 0;
+			}else if ( ch == '[' ){
+				in_square = 1;
 			}else if ( ch == '\\' ){
 				skip = 1;
 			}else if ( ch == '/' ){
@@ -656,6 +668,9 @@ static token * scan_token(cache *stream, size_t prev_type){
 		case '!':
 			tok = SIMPLE_TOKEN("!", TOKEN_NOT);
 			break;
+		case '~':
+			tok = SIMPLE_TOKEN("~", TOKEN_BITWISE_NOT);
+			break;
 
 		// 1 or more chars
 		case '?':
@@ -673,7 +688,10 @@ static token * scan_token(cache *stream, size_t prev_type){
 				tok = new_token_line_comment(stream, charnum);
 			}else if ( ch == '*' ){
 				tok = new_token_multi_line_comment(stream, charnum);
-			}else if ( prev_type != TOKEN_VARIABLE && prev_type != TOKEN_NUMERIC && prev_type != TOKEN_CLOSE_PAREN ){
+			}else if ( prev_type != TOKEN_VARIABLE
+				&& prev_type != TOKEN_NUMERIC && prev_type != TOKEN_CLOSE_PAREN
+				&& prev_type != TOKEN_CLOSE_BRACE
+			){
 				cache_step_back(stream);
 				tok = new_regex(stream, charnum);
 			}else if ( ch == '=' ){
@@ -709,6 +727,15 @@ static token * scan_token(cache *stream, size_t prev_type){
 				tok = SIMPLE_TOKEN("-", TOKEN_SUBTRACT);
 			}
 			break;
+		case '%':
+			ch = cache_getc(stream);
+			if ( ch == '='){
+				tok = SIMPLE_TOKEN("%=", TOKEN_MOD_EQUAL);
+			} else{
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN("%", TOKEN_MOD);
+			}
+			break;
 		case '*':
 			ch = cache_getc(stream);
 			if ( ch == '*'){
@@ -729,6 +756,15 @@ static token * scan_token(cache *stream, size_t prev_type){
 			} else{
 				cache_step_back(stream);
 				tok = SIMPLE_TOKEN("+", TOKEN_ADD);
+			}
+			break;
+		case '^':
+			ch = cache_getc(stream);
+			if ( ch == '='){
+				tok = SIMPLE_TOKEN("^=", TOKEN_BITWISE_XOR_ASSIGN);
+			} else{
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN("^", TOKEN_BITWISE_XOR);
 			}
 			break;
 		case '|':
