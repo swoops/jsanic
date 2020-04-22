@@ -2,7 +2,7 @@
 
 Fast (incomplete) JavaScript lexer. Eventually a beautifyer (hopefully).
 
-```js
+```sh
 > /usr/bin/time -f 'seconds: %e mem: %M kb' ps aux > /dev/null
 seconds: 0.01 mem: 3428 kb
 > /usr/bin/time -f 'seconds: %e mem: %M kb' ./jsanic -s /tmp/js_file.js
