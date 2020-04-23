@@ -24,18 +24,22 @@ void usage(char *name){
 	printf(" -s        show stats\n");
 	printf(" -a        show all tokens\n");
 	printf(" -l        list known token types\n");
+	printf(" -t X      list tokens with id X (get X from -l)\n");
 }
 
 int main(int argc, char *argv[]){
-	int show_stats = 0;
-	int show_all_tokens = 0;
-	int use_stdin = 0;
-	int show_all_types = 0;
+	char show_stats = 0;
+	char show_all_tokens = 0;
+	char use_stdin = 0;
+	char show_all_types = 0;
+	char show_by_type = 0;
+
 	char *fname;
 	int fd = 0; // default to stdin
+	char * type_list = NULL;
 
 	int opt;
-	while ( ( opt = getopt(argc, argv, "hisal") ) != -1){
+	while ( ( opt = getopt(argc, argv, "hisalt:") ) != -1){
 		switch (opt){
 			case 'h':
 				usage(argv[0]);
@@ -53,6 +57,10 @@ int main(int argc, char *argv[]){
 			case 'l':
 				show_all_types = 1;
 				break;
+			case 't':
+				show_by_type = 1;
+				type_list = optarg;
+				break;
 			default:
 				usage(argv[0]);
 				return -1;
@@ -61,17 +69,15 @@ int main(int argc, char *argv[]){
 	}
 
 	if ( show_all_types == 1){
-		return token_output_types();
+		return token_output_typeids();
 	}
 
 	// validate options
-	int sum =  show_stats + show_all_tokens;
+	int sum =  show_stats + show_all_tokens + show_by_type;
 	if ( sum > 1){
-		fprintf(stderr, "Pick only one of u,t,s,c options");
+		fprintf(stderr, "Pick only one of s,a,l,t options");
 		usage(argv[0]);
 		return ERROR;
-	} else if ( sum == 0 ){
-
 	} else if ( use_stdin == 0 && optind >= argc ){
 		fprintf(stderr, "Need a file to parse\n");
 		usage(argv[0]);
@@ -96,6 +102,13 @@ int main(int argc, char *argv[]){
 		token_output_stats(fd);
 	} else if ( show_all_tokens ){
 		token_output_all(fd);
+	} else if ( show_by_type ){
+		int t = atoi(type_list);
+		if ( t < 0 ){
+			fprintf(stderr, "Invalid type\n");
+		}else {
+			token_output_by_type(fd, (size_t) t);
+		}
 	}else {
 		fprintf(stderr, "Beautifier not implemented yet\n");
 		return -1;

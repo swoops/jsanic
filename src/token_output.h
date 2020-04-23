@@ -11,12 +11,8 @@ int token_output_stats(int fd);
 int token_output_all(int fd);
 
 /*
- * consumes tokens in list, printing each
- * return 0 on success
+ * given a type, outputs all the seen tokens of that type
 */
-int token_list_print_consume(token_list *list);
-int token_list_stats_consume(token_list *list);
-int token_print_consume_unkown(token_list *list);
-int token_output_unkown(int fd);
-int token_type_name(size_t type, char **ret);
-int token_output_types();
+int token_output_by_type(int fd, size_t type);
+
+int token_output_typeids();
