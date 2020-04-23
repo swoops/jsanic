@@ -363,6 +363,9 @@ static int token_type_name(size_t type, char **name_ret){
 		case TOKEN_MULTI_LINE_COMMENT:
 			name =  "TOKEN_MULTI_LINE_COMMENT";
 			break;
+		case TOKEN_REGEX:
+			name =  "TOKEN_REGEX";
+			break;
 		case TOKEN_DIVIDE_ASSIGN:
 			name =  "TOKEN_DIVIDE_ASSIGN";
 			break;

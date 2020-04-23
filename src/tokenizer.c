@@ -590,7 +590,7 @@ static token * new_regex(cache *stream, size_t charnum){
 	}
 	TOKEN_SETALLOCED(tok);
 	tok->charnum = charnum;
-	tok->type = TOKEN_MULTI_LINE_COMMENT;
+	tok->type = TOKEN_REGEX;
 	return tok;
 }
 
