@@ -16,7 +16,7 @@ ternary:           6302
 unkown tokens:        0
 seconds: 4.23 mem: 1920 kb
 > # look for comments
-./jsanic -t $(./jsanic -l |grep TOKEN_LINE_COMMENT |cut -d':' -f1) /tmp/js_file.js |wc -l
+> ./jsanic -t $(./jsanic -l |grep TOKEN_LINE_COMMENT |cut -d':' -f1) /tmp/js_file.js |wc -l
 seraching for: TOKEN_LINE_COMMENT
 0
 ```
