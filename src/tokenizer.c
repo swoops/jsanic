@@ -304,6 +304,14 @@ static size_t get_identifyer_type(char *buf){
 		case 'c':
 			if ( strcmp("catch", buf) == 0)
 				ret = TOKEN_CATCH;
+			else if ( strcmp("const", buf) == 0)
+				ret = TOKEN_CONST;
+			break;
+		case 'd':
+			if ( strcmp("do", buf) == 0)
+				ret = TOKEN_FOR;
+			else if ( strcmp("function", buf) == 0)
+				ret = TOKEN_DO;
 			break;
 		case 'f':
 			if ( strcmp("for", buf) == 0)
@@ -323,9 +331,19 @@ static size_t get_identifyer_type(char *buf){
 			if ( strcmp("return", buf) == 0)
 				ret = TOKEN_RETURN;
 			break;
+		case 't':
+			if ( strcmp("throw", buf) == 0)
+				ret = TOKEN_THROW;
+			else if ( strcmp("typeof", buf) == 0)
+				ret = TOKEN_TYPEOF;
+			break;
 		case 'v':
 			if ( strcmp("var", buf) == 0)
 				ret = TOKEN_VAR;
+			break;
+		case 'w':
+			if ( strcmp("while", buf) == 0)
+				ret = TOKEN_WHILE;
 			break;
 	}
 	return ret;
