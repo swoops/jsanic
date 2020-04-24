@@ -1,6 +1,11 @@
 #include "tokenizer.h"
 
 /*
+ * beautify some js in the file descriptor fd
+*/
+int token_output_beauty(int fd);
+
+/*
  * set up token_list and fileio, pthread, prints the stats
 */
 int token_output_stats(int fd);

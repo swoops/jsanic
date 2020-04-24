@@ -4,6 +4,19 @@
 #include <stdio.h>
 #include <unistd.h>
 
+typedef enum BEAUTY_STATES {
+	B_START,
+	B_INLINE,
+	B_DONE
+}BEAUTY_STATES;
+
+typedef struct Beauty {
+	BEAUTY_STATES current;
+	size_t depth;
+	char *tab;
+} Beauty;
+
+
 static int token_type_name(size_t type, char **ret);
 
 int cleanup_pthread_for_tokens(pthread_t tid, pthread_attr_t *attr){
@@ -96,7 +109,121 @@ static char * token_printable(token *tok){
 	return ret;
 }
 
+
+static inline void bhelp_reduce_depth(Beauty *state){
+	if ( state->depth > 0 ) state->depth--;
+}
+
+static void bhelp_add_tabs(Beauty *state){
+	size_t i;
+	for (i=0; i<state->depth; i++){
+		printf("%s", state->tab);
+	}
+}
+
+// beautifyers
+static int beautify_start(token_list *list, Beauty *state){
+	int ret;
+	token * node;
+	if ( ( ret = token_list_pop(list, &node) ) != 0 ){
+		return ret;
+	}
+	switch (node->type){
+		case TOKEN_EOF:
+			state->current = B_DONE;
+			break;
+		case TOKEN_SPACE:
+		case TOKEN_NEWLINE:
+		case TOKEN_TAB:
+			break;
+		case TOKEN_CLOSE_CURLY:
+			bhelp_reduce_depth(state);
+			bhelp_add_tabs(state);
+			printf("}\n");
+			break;
+		case TOKEN_CARRAGE_RETURN:
+			break;
+		default:
+			// got first real token
+			// indent
+			bhelp_add_tabs(state);
+			// print element
+			printf("%s", node->value);
+			// change state
+			state->current = B_INLINE;
+			break;
+	}
+	token_destroy(node);
+	return 0;
+}
+
+static int beautify_in_line(token_list *list, Beauty *state){
+	int ret;
+	token * node;
+	if ( ( ret = token_list_pop(list, &node) ) != 0 ){
+		return ret;
+	}
+	// do we change what we are doing?
+	switch (node->type){
+		case TOKEN_EOF:
+			state->current = B_DONE;
+			break;
+		case TOKEN_CARRAGE_RETURN:
+			break;
+		case TOKEN_SEMICOLON:
+			printf(";\n");
+			state->current = B_START;
+			break;
+		case TOKEN_OPEN_CURLY:
+			printf("{\n");
+			state->current = B_START;
+			state->depth++;
+			break;
+		case TOKEN_CLOSE_CURLY:
+			printf("\n");
+			bhelp_reduce_depth(state);
+			bhelp_add_tabs(state);
+			printf("}\n");
+			state->current = B_START;
+			break;
+		case TOKEN_NEWLINE:
+			printf("\n");
+			state->current = B_START;
+			break;
+		default:
+			printf("%s", node->value);
+	}
+	token_destroy(node);
+	return 0;
+}
+
 // consumers
+/*
+ * beautifyer is implemented as a state machine
+ * each beautify_* function consumes one node and then returns to the below
+ * loop
+*/
+static int consumer_beautify(token_list *list){
+	Beauty state;
+	state.depth = 0;
+	state.current = B_START;
+	state.tab = "  ";
+	int ret;
+	while ( state.current != B_DONE ){
+		switch (state.current){
+			case B_START:
+				ret = beautify_start(list, &state);
+				break;
+			case B_INLINE:
+				ret = beautify_in_line(list, &state);
+				break;
+			case B_DONE:
+				break;
+		}
+	}
+	return ret;
+}
+
 int consumer_stats(token_list *list){
 	size_t token_count=0;
 	size_t token_lines = 1;
@@ -466,6 +593,10 @@ static int token_type_name(size_t type, char **name_ret){
 	if ( name_ret != NULL  )
 		*name_ret = name;
 	return ret;
+}
+
+int token_output_beauty(int fd){
+	return threaded_printer(fd, consumer_beautify, NULL);
 }
 
 int token_output_stats(int fd){

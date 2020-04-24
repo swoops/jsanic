@@ -110,8 +110,7 @@ int main(int argc, char *argv[]){
 			token_output_by_type(fd, (size_t) t);
 		}
 	}else {
-		fprintf(stderr, "Beautifier not implemented yet\n");
-		return -1;
+		token_output_beauty(fd);
 	}
 
 	if ( fd > 0 ){
