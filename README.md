@@ -1,29 +1,18 @@
 # jsanic
 
-Fast (incomplete) JavaScript lexer. Eventually a beautifyer (hopefully).
+If you want your production JavaScript looking sharp, then use js-beautify. Are
+you more concerned with going fast then looking pretty? Then jsanic is the tool
+for you.
+
+Check out this overly contrived example:
 
 ```sh
-> /usr/bin/time -f 'seconds: %e mem: %M kb' ps aux > /dev/null
-seconds: 0.01 mem: 3428 kb
-> /usr/bin/time -f 'seconds: %e mem: %M kb' ./jsanic -s /tmp/js_file.js
-count:          2752225
-lines:            96680
-characters:     5603600
-loops:            32773
-variables:            0
-ifs:               1103
-ternary:           6302
-unkown tokens:        0
-seconds: 4.23 mem: 1920 kb
-> # look for comments
-> ./jsanic -t $(./jsanic -l |grep TOKEN_LINE_COMMENT |cut -d':' -f1) /tmp/js_file.js |wc -l
-seraching for: TOKEN_LINE_COMMENT
-0
+> for i in {1..100000}; do echo "a = {"; done | /usr/bin/time -f 'seconds: %e mem: %M kb' ./jsanic -i >/dev/null
+seconds: 0.91 mem: 3164 kb
+> for i in {1..100000}; do echo "a = {"; done | /usr/bin/time -f 'seconds: %e mem: %M kb' js-beautify >/dev/null
+Command terminated by signal 9
+seconds: 13.70 mem: 2986796 kb
 ```
-
-This will be fast, but probably not very pretty. I am not a developer. I am
-mostly writing this for experience in more complicated programming problems.
-Hopefully something useable comes out of it. Use at your own risk.
 
 # why
 
@@ -34,13 +23,16 @@ js-beautify (a great tool) got it after I closed all other resource hogs
 (Firefox, Java, Chrome).  It took a long time and there were still many lines
 that were thousands of characters long.
 
-I want something better and I want to learn about compilers anyways. May as
-well write my own parser. 
+I want something better and I want to learn about compilers anyway. May as well
+write my own parser. 
 
 # goal
+
 Once something is used, it is freed. The scanner (`cache.c`) will only read
-from the file once, and won't store any more of the file in memory then is
+from the file once, and won't store any more of the file in memory than is
 necessary. The lexer (`tokenizer.c`) will build a thread safe double linked
 list of tokens. A separate thread can then pop from the tokens as they become
-available. Once a token is put in the token is freed. Once a branch is
-beautified, it is freed.
+available.
+
+Eventually I want to create something of an AST so that I can replace minified
+variables with unique, memorable nouns according to scope.
