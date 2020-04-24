@@ -403,9 +403,6 @@ static int token_type_name(size_t type, char **name_ret){
 		case TOKEN_CARRAGE_RETURN:
 			name =  "TOKEN_CARRAGE_RETURN";
 			break;
-		case TOKEN_NULL_BYTE:
-			name =  "TOKEN_NULL_BYTE";
-			break;
 		case TOKEN_OPEN_PAREN:
 			name =  "TOKEN_OPEN_PAREN";
 			break;
