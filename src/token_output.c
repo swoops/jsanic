@@ -98,7 +98,7 @@ static char * token_printable(token *tok){
 
 // consumers
 int consumer_stats(token_list *list){
-	size_t token_count=1;
+	size_t token_count=0;
 	size_t token_lines = 1;
 	size_t token_unknown = 0;
 	size_t token_loops = 0;
@@ -110,7 +110,7 @@ int consumer_stats(token_list *list){
 	token *node;
 	while (1){
 		node = token_list_pop(list, &ret);
-		if ( token_count % 137 == 0 || (!node && ret) ){
+		if ( ( token_count > 0 && token_count % 137 == 0 ) || (!node && ret) ){
 			if ( token_count > 137 ){
 				printf("\e[8F");
 			}
@@ -128,8 +128,8 @@ int consumer_stats(token_list *list){
 			usleep(20);
 			continue;
 		}
-
 		token_count++;
+
 		if ( node->charnum > token_charnum ){
 			token_charnum = node->charnum;
 		}
