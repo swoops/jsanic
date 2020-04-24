@@ -12,7 +12,7 @@ typedef enum BEAUTY_STATES {
 
 typedef struct Beauty {
 	BEAUTY_STATES current;
-	size_t depth;
+	size_t depth, depth_reset;
 	char *tab;
 } Beauty;
 
@@ -110,8 +110,28 @@ static char * token_printable(token *tok){
 }
 
 
-static inline void bhelp_reduce_depth(Beauty *state){
-	if ( state->depth > 0 ) state->depth--;
+static inline void bhelp_dec_depth(Beauty *state){
+	if ( state->depth_reset ){
+		if ( state->depth > 3 ) {
+			state->depth--; 
+		} else { 
+			state->depth = 10;
+			state->depth_reset--;
+		}
+	}else {
+		if ( state->depth > 0 ) { 
+			state->depth--; 
+		}
+	}
+}
+
+static inline void bhelp_inc_depth(Beauty *state){
+	if ( state->depth < 10 ) {
+		state->depth++; 
+	} else { 
+		state->depth = 3;
+		state->depth_reset++;
+	}
 }
 
 static void bhelp_add_tabs(Beauty *state){
@@ -137,7 +157,7 @@ static int beautify_start(token_list *list, Beauty *state){
 		case TOKEN_TAB:
 			break;
 		case TOKEN_CLOSE_CURLY:
-			bhelp_reduce_depth(state);
+			bhelp_dec_depth(state);
 			bhelp_add_tabs(state);
 			printf("}\n");
 			break;
@@ -177,11 +197,11 @@ static int beautify_in_line(token_list *list, Beauty *state){
 		case TOKEN_OPEN_CURLY:
 			printf("{\n");
 			state->current = B_START;
-			state->depth++;
+			bhelp_inc_depth(state);
 			break;
 		case TOKEN_CLOSE_CURLY:
 			printf("\n");
-			bhelp_reduce_depth(state);
+			bhelp_dec_depth(state);
 			bhelp_add_tabs(state);
 			printf("}\n");
 			state->current = B_START;
@@ -206,6 +226,7 @@ static int beautify_in_line(token_list *list, Beauty *state){
 static int consumer_beautify(token_list *list){
 	Beauty state;
 	state.depth = 0;
+	state.depth_reset = 0;
 	state.current = B_START;
 	state.tab = "  ";
 	int ret;
