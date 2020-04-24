@@ -500,8 +500,9 @@ static char * alloc_multi_line_comment(cache *stream, size_t *len){
 	if ( !buf ) return NULL;
 	buf[0] = (char) prev;
 	buf[1] = (char) ch;
-	for (i=2; ch > 0; i++){
+	for (i=2; ; i++){
 		ch = cache_getc(stream);
+		if ( ch < 0 ) break;
 		if ( i+3 > size ){
 			size += 16;
 			buf = (char *) realloc(buf, size);
@@ -518,8 +519,8 @@ static char * alloc_multi_line_comment(cache *stream, size_t *len){
 	}
 	buf = (char *) realloc(buf, i+3);
 	if ( !buf ) return NULL;
-	*len = i;
-	buf[i] = '\x00';
+	*len = i+1;
+	buf[i+1] = '\x00';
 	return buf;
 
 }
