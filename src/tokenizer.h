@@ -90,15 +90,13 @@ void * gettokens(void *list);
 void token_list_destroy(token_list *list);
 
 /*
- * unlinks first element of token list and returns a pointer to it
+ * unlinks first element of token list and puts it in the tok pointer
  *
- * NULL means failure or no more tokens. If all went well, the last token
- * should be a EOF. If the token parsing thread (gettokens_...) thread errored,
- * this may never return EOF
- *
- * returns NULL on failure
+ * If an element is not yet ready, this funciton blocks. The function will
+ * return 0 on success. Non-zero means the list is empty and won't get any more
+ * elements.
 */
-token * token_list_pop(token_list *list, int *status);
+int token_list_pop(token_list *list, token **tok);
 
 /*
  * peeks the type of the next token in the list, does not consume the token

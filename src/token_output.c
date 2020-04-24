@@ -109,9 +109,9 @@ int consumer_stats(token_list *list){
 	int ret = 0;
 	token *node;
 	while (1){
-		node = token_list_pop(list, &ret);
-		if ( ( token_count > 0 && token_count % 137 == 0 ) || (!node && ret) ){
-			if ( token_count > 137 ){
+		ret = token_list_pop(list, &node);
+		if ( token_count % 137 == 136 || (!node && ret) ){
+			if ( token_count > 136 ){
 				printf("\e[8F");
 			}
 			printf("count:         %8ld\n", token_count);
@@ -122,11 +122,7 @@ int consumer_stats(token_list *list){
 			printf("ifs:           %8ld\n", token_ifs);
 			printf("ternary:       %8ld\n", token_terinaries);
 			printf("unkown tokens: %8ld\n", token_unknown);
-		}
-		if ( !node ){
 			if ( ret ) break;
-			usleep(20);
-			continue;
 		}
 		token_count++;
 
@@ -164,13 +160,7 @@ static int consumer_all(token_list *list, void *unused){
 	int ret = 0;
 	token *node;
 	printf("#     line  charnum  length value\n");
-	while (1){
-		node = token_list_pop(list, &ret);
-		if ( !node ){
-			if ( ret ) break;
-			usleep(20);
-			continue;
-		}
+	while ((ret = token_list_pop(list, &node)) == 0){
 		token_count++;
 		printf(
 			"%4ld  %-4ld   %-8ld  %-6ld  %s",
@@ -205,13 +195,8 @@ static int consumer_by_type(token_list *list, void *type_id){
 	if ( ret ) return ERROR;
 
 	fprintf(stderr, "seraching for: %s\n", name);
-	for (i=0; ; i++){
-		node = token_list_pop(list, &ret);
-		if ( !node ){
-			if ( ret ) break;
-			usleep(20);
-			continue;
-		}
+	while ((ret = token_list_pop(list, &node)) == 0){
+		i++;
 		if ( node->type == type ){
 			printf("%s line:%ld byte_num:%ld token_num:%ld '%s'\n",
 				name, line, node->charnum, i, node->value
@@ -232,13 +217,7 @@ int token_print_consume_unkown(token_list *list){
 	char * value;
 	int ret = 0;
 	token *node;
-	while (count < 30){
-		node = token_list_pop(list, &ret);
-		if ( !node ){
-			if ( ret ) break;
-			usleep(20);
-			continue;
-		}
+	while ((ret = token_list_pop(list, &node)) == 0 && count < 30){
 		if ( node->type == TOKEN_ERROR ){
 			value = node->value;
 			count++;

@@ -91,13 +91,17 @@ token_list * token_list_init(int fd){
 	return list;
 }
 
-token * token_list_pop(token_list *list, int *status){
-	token *tok, *newhead;
+int token_list_pop(token_list *list, token **tok_ret){
+	int ret;
+	token *newhead, *tok;
+	*tok_ret = NULL;
 	locklist(list);
-	*status = list->status;
-	if ( list->size == 0 ){
+	while ( list->size == 0 ){
+		ret = list->status;
 		unlocklist(list);
-		return NULL;
+		if ( ret < 0 ) return ret;
+		usleep(20);
+		locklist(list);
 	}
 
 	tok = list->head;
@@ -115,7 +119,8 @@ token * token_list_pop(token_list *list, int *status){
 		list->tail=NULL;
 	}
 	unlocklist(list);
-	return tok;
+	*tok_ret = tok;
+	return 0;
 }
 
 void token_list_set_status(token_list *list, int status){
@@ -150,10 +155,10 @@ static void token_list_wait_done(token_list *list){
 }
 
 void token_list_destroy(token_list *list){
-	int ret;
+	token *tok;
 	token_list_wait_done(list);
-	while ( list->size > 0 ){
-		token_destroy( token_list_pop(list, &ret));
+	while (token_list_pop(list, &tok) == 0){
+		token_destroy(tok);
 	}
 	pthread_mutex_destroy(&list->lock);
 	free(list);
