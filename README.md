@@ -1,7 +1,7 @@
 # jsanic
 
 If you want your production JavaScript looking sharp, then use js-beautify. Are
-you more concerned with going fast then looking pretty? Then jsanic is the tool
+you more concerned with going fast than looking pretty? Then jsanic is the tool
 for you.
 
 Check out this overly contrived example:
