@@ -337,7 +337,7 @@ static int consumer_by_type(token_list *list, void *type_id){
 	size_t type = *(size_t *)type_id;
 	char *name = NULL;
 	size_t line = 1;
-	size_t i;
+	size_t i=0;
 	token *node;
 	int ret = token_type_name(type, &name);
 	if ( ret ) return ERROR;
