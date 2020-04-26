@@ -52,9 +52,9 @@ int cache_getc(cache *c){
 	int ret;
 	if ( c->behind ){
 		ret = c->buf[c->index];
-		c->index++;
 		c->behind--;
 		c->charnum++;
+		c->index = c->charnum%c->real_size;
 		return ret;
 	}
 
@@ -65,14 +65,12 @@ int cache_getc(cache *c){
 	}
 	c->buf[c->index] = (unsigned char) ret;
 	c->charnum++;
-	c->index++;
+	c->index = c->charnum%c->real_size;
 	if ( c->size < c->real_size ) {
 		c->size++;
 		return ret;
 	}
 
-	// if we hit buf max, so we have to move things arround
-	c->index %= c->real_size; // at this point real_size == size
 	return ret;
 }
 
@@ -81,10 +79,7 @@ int cache_step_back(cache *c){
 	if ( c->behind >= c->size ) return ERROR;
 	c->behind++;
 	c->charnum--;
-	if ( c->index == 0 )
-		c->index = c->size-1;
-	else
-		c->index--;
+	c->index = c->charnum % c->real_size;
 	return 0;
 }
 
