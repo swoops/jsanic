@@ -546,6 +546,7 @@ static char * alloc_regex(cache *stream, size_t *len){
 		if ( end_slash ){
 			// flags
 			if ( ! is_alpha(ch) ){
+				cache_step_back(stream);
 				break;
 			}
 		} else if ( in_square ){
