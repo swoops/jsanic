@@ -141,6 +141,21 @@ static void bhelp_add_tabs(Beauty *state){
 	}
 }
 
+static void curly_close_add_newline(token_list *list, Beauty *state){
+	size_t t = token_list_consume_white_peek(list);
+	switch (t){
+		case TOKEN_WHILE:
+		case TOKEN_ELSE:
+		case TOKEN_COMMA:
+		case TOKEN_SEMICOLON:
+			state->current = B_INLINE;
+			break;
+		default:
+			state->current = B_START;
+			printf("\n");
+	}
+}
+
 // beautifyers
 static int beautify_start(token_list *list, Beauty *state){
 	int ret;
@@ -156,10 +171,16 @@ static int beautify_start(token_list *list, Beauty *state){
 		case TOKEN_NEWLINE:
 		case TOKEN_TAB:
 			break;
+		case TOKEN_OPEN_CURLY:
+			bhelp_add_tabs(state);
+			printf("{\n");
+			bhelp_inc_depth(state);
+			break;
 		case TOKEN_CLOSE_CURLY:
 			bhelp_dec_depth(state);
 			bhelp_add_tabs(state);
-			printf("}\n");
+			printf("}");
+			curly_close_add_newline(list, state);
 			break;
 		case TOKEN_CARRAGE_RETURN:
 			break;
@@ -203,8 +224,8 @@ static int beautify_in_line(token_list *list, Beauty *state){
 			printf("\n");
 			bhelp_dec_depth(state);
 			bhelp_add_tabs(state);
-			printf("}\n");
-			state->current = B_START;
+			printf("}");
+			curly_close_add_newline(list, state);
 			break;
 		case TOKEN_NEWLINE:
 			printf("\n");
@@ -585,6 +606,9 @@ static int token_type_name(size_t type, char **name_ret){
 			break;
 		case TOKEN_IF:
 			name =  "TOKEN_IF";
+			break;
+		case TOKEN_ELSE:
+			name =  "TOKEN_ELSE";
 			break;
 		case TOKEN_DO:
 			name =  "TOKEN_DO";

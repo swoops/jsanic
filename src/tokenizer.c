@@ -47,13 +47,33 @@ static int token_list_append(token_list *list, token *tok){
 	return ret;
 }
 
+size_t token_list_consume_white_peek(token_list *list){
+	size_t type = TOKEN_NONE;
+	token *tok;
+	while (1){
+		type = token_list_peek_type(list);
+		if ( type != TOKEN_SPACE && type != TOKEN_NEWLINE && type != TOKEN_TAB ){
+			return type;
+		}
+		if ( token_list_pop(list, &tok) < 0){
+			return type;
+		}
+		token_destroy(tok);
+	}
+}
 
 size_t token_list_peek_type(token_list *list){
+	int check;
 	size_t ret = TOKEN_NONE;
 	locklist(list);
-	if ( list->size > 0 ){
-		ret = list->head->type;
+	while ( list->size == 0 ){
+		check = list->status;
+		unlocklist(list);
+		if ( check < 0 ) return ret;
+		usleep(20);
+		locklist(list);
 	}
+	ret = list->head->type;
 	unlocklist(list);
 	return ret;
 }
@@ -317,6 +337,10 @@ static size_t get_identifyer_type(char *buf){
 				ret = TOKEN_FOR;
 			else if ( strcmp("function", buf) == 0)
 				ret = TOKEN_DO;
+			break;
+		case 'e':
+			if ( strcmp("else", buf) == 0)
+				ret = TOKEN_ELSE;
 			break;
 		case 'f':
 			if ( strcmp("for", buf) == 0)

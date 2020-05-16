@@ -47,7 +47,7 @@ typedef enum {
 
 	// identifiers
 	TOKEN_VAR, TOKEN_FOR, TOKEN_LET, TOKEN_FUNCTION, TOKEN_RETURN, TOKEN_CATCH,
-	TOKEN_IF, TOKEN_DO, TOKEN_WHILE,TOKEN_THROW,TOKEN_CONST, TOKEN_TYPEOF,
+	TOKEN_IF, TOKEN_ELSE, TOKEN_DO, TOKEN_WHILE,TOKEN_THROW,TOKEN_CONST, TOKEN_TYPEOF,
 	TOKEN_VARIABLE,
 } tokentype;
 
@@ -96,6 +96,12 @@ void token_list_destroy(token_list *list);
  * elements.
 */
 int token_list_pop(token_list *list, token **tok);
+
+/*
+ * consumes whitespace characters, returns the next token type
+*/
+size_t token_list_consume_white_peek(token_list *list);
+
 
 /*
  * peeks the type of the next token in the list, does not consume the token
