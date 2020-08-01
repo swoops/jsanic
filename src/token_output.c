@@ -19,9 +19,9 @@ typedef struct Beauty {
 
 static int token_type_name(size_t type, char **ret);
 
-int cleanup_pthread_for_tokens(pthread_t tid, pthread_attr_t *attr){
+int cleanup_pthread_for_tokens(pthread_t *tid, pthread_attr_t *attr){
 	void * status;
-	if ( pthread_join(tid, &status) != 0 ){
+	if ( pthread_join(*tid, &status) != 0 ){
 		fprintf(stderr, "[!!] Join failed\n");
 		return ERROR_PTHREAD_FAIL;
 	}
@@ -34,39 +34,29 @@ int cleanup_pthread_for_tokens(pthread_t tid, pthread_attr_t *attr){
 }
 
 
-int start_token_thread(pthread_t *tid, pthread_attr_t *attr, token_list *list){
-	if ( pthread_attr_init(attr) != 0){
-		perror("Failed pthread_attr_init: ");
-		token_list_destroy(list);
-		return ERROR_PTHREAD_FAIL;
-	}
-
-	if ( pthread_create(tid, attr, gettokens, (void *) list) != 0){
-		fprintf(stderr, "[!!] pthread_create failed\n");
-		token_list_destroy(list);
-		return ERROR_PTHREAD_FAIL;
-	}
-	return 0;
-}
-
 int threaded_printer(int fd, void *func, void *args){
+	if (!func) {
+		return ERROR;
+	}
 	pthread_t tid;
 	pthread_attr_t attr;
-	token_list *list = NULL;
-	int ret;
-	int (*fun_ptr)(token_list *, void *) = func;
-	if ( fd < 0 ){
-		return IOERROR;
-	}
-	if ( (list = token_list_init(fd)) == NULL ) {
-		return MALLOCFAIL;
-	}
-	if ( start_token_thread(&tid, &attr, list) == 0 ){
-		ret = (fun_ptr)(list, args);
-		if ( ret == EOF ) ret = 0;
+	if (pthread_attr_init(&attr) != 0){
+		perror("Failed pthread_attr_init: ");
+		return ERROR;
 	}
 
-	token_list_destroy(list);
+	List *list = tokenizer_start_thread(&tid, &attr, fd);
+	if (!list) {
+		return ERROR;
+	}
+
+	int (*fun_ptr)(List *, void *) = func;
+	int ret = (fun_ptr)(list, args);
+	if (ret == EOF) {
+		ret = 0;
+	}
+	cleanup_pthread_for_tokens(&tid, &attr);
+	list_destroy(list);
 	return ret;
 }
 
@@ -84,7 +74,7 @@ int token_output_typeids(){
 	return 0;
 }
 
-static char * token_printable(token *tok){
+static char * token_printable(Token *tok){
 	char * ret;
 	switch (tok->type) {
 		case TOKEN_CARRAGE_RETURN:
@@ -113,22 +103,22 @@ static char * token_printable(token *tok){
 static inline void bhelp_dec_depth(Beauty *state){
 	if ( state->depth_reset ){
 		if ( state->depth > 3 ) {
-			state->depth--; 
-		} else { 
+			state->depth--;
+		} else {
 			state->depth = 10;
 			state->depth_reset--;
 		}
 	}else {
-		if ( state->depth > 0 ) { 
-			state->depth--; 
+		if ( state->depth > 0 ) {
+			state->depth--;
 		}
 	}
 }
 
 static inline void bhelp_inc_depth(Beauty *state){
 	if ( state->depth < 10 ) {
-		state->depth++; 
-	} else { 
+		state->depth++;
+	} else {
 		state->depth = 3;
 		state->depth_reset++;
 	}
@@ -141,7 +131,7 @@ static void bhelp_add_tabs(Beauty *state){
 	}
 }
 
-static void curly_close_add_newline(token_list *list, Beauty *state){
+static void curly_close_add_newline(List *list, Beauty *state){
 	size_t t = token_list_consume_white_peek(list);
 	switch (t){
 		case TOKEN_WHILE:
@@ -157,13 +147,14 @@ static void curly_close_add_newline(token_list *list, Beauty *state){
 }
 
 // beautifyers
-static int beautify_start(token_list *list, Beauty *state){
-	int ret;
-	token * node;
-	if ( ( ret = token_list_pop(list, &node) ) != 0 ){
-		return ret;
+static void beautify_start(List *list, Beauty *state){
+	Token * token = list_dequeue_block(list);
+	if (!token) {
+		// end of token list for some reason
+		state->current = B_DONE;
+		return;
 	}
-	switch (node->type){
+	switch (token->type){
 		case TOKEN_EOF:
 			state->current = B_DONE;
 			break;
@@ -185,27 +176,25 @@ static int beautify_start(token_list *list, Beauty *state){
 		case TOKEN_CARRAGE_RETURN:
 			break;
 		default:
-			// got first real token
+			// got first real Token
 			// indent
 			bhelp_add_tabs(state);
 			// print element
-			printf("%s", node->value);
+			printf("%s", token->value);
 			// change state
 			state->current = B_INLINE;
 			break;
 	}
-	token_destroy(node);
-	return 0;
+	list->free(token);
 }
 
-static int beautify_in_line(token_list *list, Beauty *state){
-	int ret;
-	token * node;
-	if ( ( ret = token_list_pop(list, &node) ) != 0 ){
-		return ret;
+static void beautify_in_line(List *list, Beauty *state){
+	Token * token = list_dequeue_block(list);
+	if (!list) {
+		state->current = B_DONE;
 	}
 	// do we change what we are doing?
-	switch (node->type){
+	switch (token->type){
 		case TOKEN_EOF:
 			state->current = B_DONE;
 			break;
@@ -232,41 +221,38 @@ static int beautify_in_line(token_list *list, Beauty *state){
 			state->current = B_START;
 			break;
 		default:
-			printf("%s", node->value);
+			printf("%s", token->value);
 	}
-	token_destroy(node);
-	return 0;
+	list->free(token);
 }
 
 // consumers
 /*
  * beautifyer is implemented as a state machine
- * each beautify_* function consumes one node and then returns to the below
+ * each beautify_* function consumes one token and then returns to the below
  * loop
 */
-static int consumer_beautify(token_list *list){
+static void consumer_beautify(List *list){
 	Beauty state;
 	state.depth = 0;
 	state.depth_reset = 0;
 	state.current = B_START;
 	state.tab = "  ";
-	int ret;
 	while ( state.current != B_DONE ){
 		switch (state.current){
 			case B_START:
-				ret = beautify_start(list, &state);
+				beautify_start(list, &state);
 				break;
 			case B_INLINE:
-				ret = beautify_in_line(list, &state);
+				beautify_in_line(list, &state);
 				break;
 			case B_DONE:
 				break;
 		}
 	}
-	return ret;
 }
 
-int consumer_stats(token_list *list){
+void consumer_stats(List *list){
 	size_t token_count=0;
 	size_t token_lines = 1;
 	size_t token_unknown = 0;
@@ -275,11 +261,9 @@ int consumer_stats(token_list *list){
 	size_t token_ifs = 0;
 	size_t token_charnum = 0;
 	size_t token_terinaries = 0;
-	int ret = 0;
-	token *node;
 	while (1){
-		ret = token_list_pop(list, &node);
-		if ( token_count % 137 == 136 || (!node && ret) ){
+		Token *token = list_dequeue_block(list);
+		if (token_count % 137 == 136 || !token){
 			if ( token_count > 136 ){
 				printf("\e[8F");
 			}
@@ -291,14 +275,16 @@ int consumer_stats(token_list *list){
 			printf("ifs:           %8ld\n", token_ifs);
 			printf("ternary:       %8ld\n", token_terinaries);
 			printf("unkown tokens: %8ld\n", token_unknown);
-			if ( ret ) break;
+			if (!token) {
+				break;
+			}
 		}
 		token_count++;
 
-		if ( node->charnum > token_charnum ){
-			token_charnum = node->charnum;
+		if ( token->charnum > token_charnum ){
+			token_charnum = token->charnum;
 		}
-		switch ( node->type ){
+		switch ( token->type ){
 			case TOKEN_ERROR:
 				token_unknown++;
 				break;
@@ -318,85 +304,84 @@ int consumer_stats(token_list *list){
 				token_terinaries++;
 				break;
 		}
-		token_destroy(node);
+		list->free(token);
 	}
-	return ret;
 }
 
-static int consumer_all(token_list *list, void *unused){
+static int consumer_all(List *list, void *unused){
 	size_t line=1;
 	size_t token_count=0;
 	int ret = 0;
-	token *node;
+	Token *token;
 	printf("#     line  charnum  length value\n");
-	while ((ret = token_list_pop(list, &node)) == 0){
+	while ((token = list_dequeue_block(list))){
 		token_count++;
 		printf(
 			"%4ld  %-4ld   %-8ld  %-6ld  %s",
-			token_count, line, node->charnum, node->length,
-			token_printable(node)
+			token_count, line, token->charnum, token->length,
+			token_printable(token)
 		);
-		switch (node->type){
+		switch (token->type){
 			case TOKEN_ERROR:
 				printf(" -> TOKEN_ERROR");
 				break;
 			case TOKEN_EOF:
 				printf("\nNum of lines: %ld\n", line);
-				printf("EOF size: %ld\n", node->charnum);
+				printf("EOF size: %ld\n", token->charnum);
 				break;
 			case TOKEN_NEWLINE:
 				line++;
 				break;
 		}
 		printf("\n");
-		token_destroy(node);
+		list->free(token);
 	}
 	return ret;
 }
 
-static int consumer_by_type(token_list *list, void *type_id){
+static int consumer_by_type(List *list, void *type_id){
 	size_t type = *(size_t *)type_id;
 	char *name = NULL;
 	size_t line = 1;
 	size_t i=0;
-	token *node;
+	Token *token;
 	int ret = token_type_name(type, &name);
-	if ( ret ) return ERROR;
+	if (ret){
+		return ERROR;
+	}
 
 	fprintf(stderr, "seraching for: %s\n", name);
-	while ((ret = token_list_pop(list, &node)) == 0){
+	while ((token = list_dequeue_block(list))){
 		i++;
-		if ( node->type == type ){
+		if ( token->type == type ){
 			printf("%s line:%ld byte_num:%ld token_num:%ld '%s'\n",
-				name, line, node->charnum, i, node->value
+				name, line, token->charnum, i, token->value
 			);
 		}
-		if ( node->type == TOKEN_NEWLINE ){
+		if ( token->type == TOKEN_NEWLINE ){
 			line++;
 		}
 
-		token_destroy(node);
+		list->free(token);
 	}
 	return ret;
 }
 
 
-int token_print_consume_unkown(token_list *list){
+void token_print_consume_unkown(List *list){
 	size_t count = 0;
 	char * value;
-	int ret = 0;
-	token *node;
-	while ((ret = token_list_pop(list, &node)) == 0 && count < 30){
-		if ( node->type == TOKEN_ERROR ){
-			value = node->value;
+	Token *token;
+	while ((token = list_dequeue_block(list)) && count < 30){
+		if ( token->type == TOKEN_ERROR ){
+			value = token->value;
 			count++;
 			printf("[%ld] char: %ld uknown token: 0x%02x '%s'\n",
-				count, node->charnum, value[0], value
+				count, token->charnum, value[0], value
 			);
 		}
-		token_destroy(node);
+		list->free(token);
 	}
-	return ret;
 }
 
 static int token_type_name(size_t type, char **name_ret){

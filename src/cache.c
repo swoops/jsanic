@@ -35,7 +35,7 @@ void cache_destroy(cache *c){
 	free(c);
 }
 
-int readchr(int fd){
+static int readchr(int fd){
 	ssize_t ret;
 	unsigned char buf;
 	ret = read(fd, &buf, 1);

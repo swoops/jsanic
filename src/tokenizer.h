@@ -1,18 +1,14 @@
 #include <pthread.h>
+#include "list.h"
 
-typedef struct token token;
-struct  token {
+typedef struct token_data Token;
+struct  token_data {
 	char *value;
 	size_t length;
 	size_t charnum;
 	int type;
 	unsigned int flags;
-	token * next;
-	token * prev;
 };
-
-
-typedef struct token token;
 
 typedef enum {
 
@@ -53,40 +49,14 @@ typedef enum {
 
 
 /*
- * token_list.status
- * <0   tokenizer is done, no more appending, safe to remove
- * >0   tells tokenizer to stop, but it has not done so yet
- * ==0  tokenizer is still going
- * == EOF done and processed to EOF
+ * kick off the token producer, tokens will be added to the returned locked
+ * list
 */
-typedef struct token_list {
-	token *head;
-	token *tail;
-	size_t size;
-	int fd;
-	int status;
-	pthread_mutex_t lock;
-} token_list;
-
-#define LIST_LOCK 1 << 0
-
+List * tokenizer_start_thread(pthread_t *tid, pthread_attr_t *attr, int fd);
 /*
- * generate a empty token list.
+ * lexes from list->fd
 */
-token_list * token_list_init(int fd);
-
-/*
- * lexes from list->fd, if ( list->fd < 0 ) it will open list->fanme and lex
- * from there
- *
-*/
-void * gettokens(void *list);
-
-/*
- * destroy a token_list, the calling thread should have sole access to the
- * token_list or there will be a race
-*/
-void token_list_destroy(token_list *list);
+void * gettokens(void *in);
 
 /*
  * unlinks first element of token list and puts it in the tok pointer
@@ -94,21 +64,18 @@ void token_list_destroy(token_list *list);
  * If an element is not yet ready, this funciton blocks. The function will
  * return 0 on success. Non-zero means the list is empty and won't get any more
  * elements.
+ *
+ * Input is Thread_params ponter
 */
-int token_list_pop(token_list *list, token **tok);
+Token * token_list_dequeue(List *tl);
 
 /*
  * consumes whitespace characters, returns the next token type
 */
-size_t token_list_consume_white_peek(token_list *list);
+size_t token_list_consume_white_peek(List *tl);
 
 
 /*
  * peeks the type of the next token in the list, does not consume the token
 */
-size_t token_list_peek_type(token_list *list);
-
-/*
- * remove token structure from memmory
-*/
-void token_destroy(token *tok);
+size_t token_list_peek_type(List *tl);

@@ -2,12 +2,10 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "threads.h"
 #include "errorcodes.h"
 #include "tokenizer.h"
 #include "cache.h"
-
-#define locklist(x) pthread_mutex_lock(&x->lock)
-#define unlocklist(x) pthread_mutex_unlock(&x->lock)
 
 // token flags and macros
 #define  LINKED   1  <<  0
@@ -21,74 +19,43 @@
 #define TOKEN_ISHEAD(x)       ( x->flags & HEAD )
 #define TOKEN_SETALLOCED(x)   x->flags |= ALLOCED
 
-static int token_list_append(token_list *list, token *tok){
-	int ret = 0;
-	assert(tok->next == NULL); // sanity
-
-	locklist(list);
-	token *tail = list->tail;
-	list->tail = tok;
-	tok->prev = tail;
-	if ( tail != NULL ){
-		assert(tail->next == NULL); // sanity
-		tail->next = tok;
+static bool until_not_white(void *data, void *args) {
+	Token *token = (Token *) data;
+	size_t type = token->type;
+	if ( type != TOKEN_SPACE && type != TOKEN_NEWLINE && type != TOKEN_TAB ){
+		return false;
 	}
-	if ( list->head == NULL ){
-		list->head = tok;
-	}
-	list->size++;
-	TOKEN_SETLINKED(tok);
-	if ( tok->type == TOKEN_EOF ){
-		ret = list->status = EOF;
-	}else{
-		ret = list->status;
-	}
-	unlocklist(list);
-	return ret;
+	*(size_t *) args = type;
+	return true;
 }
 
-size_t token_list_consume_white_peek(token_list *list){
+size_t token_list_consume_white_peek(List *tl){
 	size_t type = TOKEN_NONE;
-	token *tok;
-	while (1){
-		type = token_list_peek_type(list);
-		if ( type != TOKEN_SPACE && type != TOKEN_NEWLINE && type != TOKEN_TAB ){
-			return type;
-		}
-		if ( token_list_pop(list, &tok) < 0){
-			return type;
-		}
-		token_destroy(tok);
-	}
+	list_consume_until(tl, until_not_white, (void *) &type);
+	return type;
 }
 
-size_t token_list_peek_type(token_list *list){
-	int check;
-	size_t ret = TOKEN_NONE;
-	locklist(list);
-	while ( list->size == 0 ){
-		check = list->status;
-		unlocklist(list);
-		if ( check < 0 ) return ret;
-		usleep(20);
-		locklist(list);
+size_t token_list_peek_type(List *tl){
+	Token *t = (Token *) list_peek_head_block(tl);
+	if (t) {
+		return t->type;
 	}
-	ret = list->head->type;
-	unlocklist(list);
-	return ret;
+	return TOKEN_ERROR;
 }
 
-static token * token_init(){
-	token * ret = (token *) malloc(sizeof(token));
+static Token * token_init(){
+	Token * ret = (Token *) malloc(sizeof(Token));
 	if ( ret == NULL ) return ret;
 	ret->value = NULL;
-	ret->next = NULL;
-	ret->prev = NULL;
 	ret->flags = 0;
 	return ret;
 }
 
-void token_destroy(token *tok){
+static void token_destroy(void *v){
+	if (!v) {
+		return;
+	}
+	Token *tok = (Token *) v;
 	assert(!TOKEN_ISLINKED(tok));
 	assert(!TOKEN_ISHEAD(tok));
 	if ( TOKEN_ISALLOCED(tok) ){
@@ -97,91 +64,8 @@ void token_destroy(token *tok){
 	free(tok);
 }
 
-token_list * token_list_init(int fd){
-	if ( fd < 0 ) return NULL;
-	token_list * list = (token_list*) malloc(sizeof(token_list));
-	if ( list ) {
-		list->status = 0;
-		list->head = NULL;
-		list->tail = NULL;
-		list->size = 0;
-		list->fd = fd;
-		pthread_mutex_init(&list->lock, NULL);
-	}
-	return list;
-}
-
-int token_list_pop(token_list *list, token **tok_ret){
-	int ret;
-	token *newhead, *tok;
-	*tok_ret = NULL;
-	locklist(list);
-	while ( list->size == 0 ){
-		ret = list->status;
-		unlocklist(list);
-		if ( ret < 0 ) return ret;
-		usleep(20);
-		locklist(list);
-	}
-
-	tok = list->head;
-	assert(tok->prev == NULL); // sanity
-	list->size--;
-	TOKEN_UNSETLINKED(tok);
-
-	// re-linking
-	newhead = tok->next;
-	tok->next = NULL;
-	list->head = newhead;
-	if ( newhead ){
-		newhead->prev = NULL;
-	} else if ( list->tail == tok ){
-		list->tail=NULL;
-	}
-	unlocklist(list);
-	*tok_ret = tok;
-	return 0;
-}
-
-void token_list_set_status(token_list *list, int status){
-	locklist(list);
-	list->status = status;
-	unlocklist(list);
-}
-
-static void token_list_wait_done(token_list *list){
-	locklist(list);
-	if (list->status < 0){
-		// tokenizer is done already
-		unlocklist(list);
-		return;
-	}
-
-	if ( list->status == 0 ){
-		// need to tell it to stop
-		list->status = 1;
-	}
-
-	// wait for tokenizer to finish
-	while (1){
-		unlocklist(list);
-		usleep(10);
-		locklist(list);
-		if ( list->status < 0 ){
-			unlocklist(list);
-			break;
-		}
-	}
-}
-
-void token_list_destroy(token_list *list){
-	token *tok;
-	token_list_wait_done(list);
-	while (token_list_pop(list, &tok) == 0){
-		token_destroy(tok);
-	}
-	pthread_mutex_destroy(&list->lock);
-	free(list);
+Token * token_list_dequeue(List *tl){
+	return (Token *) list_dequeue_block(tl);
 }
 
 static inline int is_numeric(int ch){
@@ -295,8 +179,8 @@ static char * alloc_numeric(cache *stream, int ch, size_t *len){
 }
 
 
-static token * new_token_static(char *value, size_t type, size_t length, size_t charnum){
-	token *tok = token_init();
+static Token * new_token_static(char *value, size_t type, size_t length, size_t charnum){
+	Token *tok = token_init();
 	if ( !tok ) return tok;
 	tok->value = value;
 	tok->length = length;
@@ -305,9 +189,9 @@ static token * new_token_static(char *value, size_t type, size_t length, size_t 
 	return tok;
 }
 
-static token * new_token_error(int ch, size_t charnum){
+static Token * new_token_error(int ch, size_t charnum){
 	char buf[2];
-	token *tok = token_init();
+	Token *tok = token_init();
 	if ( !tok ) return tok;
 	buf[0] = (char) ch;
 	buf[1] = '\x00';
@@ -378,8 +262,8 @@ static size_t get_identifyer_type(char *buf){
 	return ret;
 }
 
-static token * new_token_identifyer(size_t charnum, char *value, size_t len){
-	token *tok = token_init();
+static Token * new_token_identifyer(size_t charnum, char *value, size_t len){
+	Token *tok = token_init();
 	if ( !tok ) return tok;
 	TOKEN_SETALLOCED(tok);
 	tok->length = len;
@@ -389,8 +273,8 @@ static token * new_token_identifyer(size_t charnum, char *value, size_t len){
 	return tok;
 }
 
-static token * new_token_number(size_t charnum, char *value, size_t len){
-	token *tok = token_init();
+static Token * new_token_number(size_t charnum, char *value, size_t len){
+	Token *tok = token_init();
 	if ( !tok ) return tok;
 	TOKEN_SETALLOCED(tok);
 	tok->length = len;
@@ -446,8 +330,8 @@ static char * alloc_string(cache *stream, int start, size_t *len){
 	return buf;
 }
 
-static token * new_token_string(cache *stream, int start, size_t charnum){
-	token *tok = token_init();
+static Token * new_token_string(cache *stream, int start, size_t charnum){
+	Token *tok = token_init();
 	if ( !tok ) return tok;
 	tok->value = alloc_string(stream, start, &tok->length);
 	if ( !tok->value ){
@@ -501,8 +385,8 @@ static char * alloc_line_comment(cache *stream, size_t *len){
 	return buf;
 }
 
-static token * new_token_line_comment(cache *stream, size_t charnum){
-	token *tok = token_init();
+static Token * new_token_line_comment(cache *stream, size_t charnum){
+	Token *tok = token_init();
 	if ( !tok ) return tok;
 	tok->value = alloc_line_comment(stream, &tok->length);
 	if ( !tok->value ){
@@ -611,8 +495,8 @@ static char * alloc_regex(cache *stream, size_t *len){
 
 }
 
-static token * new_regex(cache *stream, size_t charnum){
-	token *tok = token_init();
+static Token * new_regex(cache *stream, size_t charnum){
+	Token *tok = token_init();
 	if ( !tok ) return tok;
 	tok->value = alloc_regex(stream, &tok->length);
 	if ( !tok->value ){
@@ -626,8 +510,8 @@ static token * new_regex(cache *stream, size_t charnum){
 }
 
 
-static token * new_token_multi_line_comment(cache *stream, size_t charnum){
-	token *tok = token_init();
+static Token * new_token_multi_line_comment(cache *stream, size_t charnum){
+	Token *tok = token_init();
 	if ( !tok ) return tok;
 	tok->value = alloc_multi_line_comment(stream, &tok->length);
 	if ( !tok->value ){
@@ -640,10 +524,10 @@ static token * new_token_multi_line_comment(cache *stream, size_t charnum){
 	return tok;
 }
 
-static token * scan_token(cache *stream, size_t prev_type){
+static Token * scan_token(cache *stream, size_t prev_type){
 	size_t charnum = cache_getcharnum(stream);
 	int ch = cache_getc(stream);
-	token *tok = NULL;
+	Token *tok = NULL;
 	if ( is_alpha(ch) || ch == '_' || ch == '$'){
 		size_t len;
 		char *buf = alloc_identifyer(stream, ch, &len);
@@ -673,7 +557,7 @@ static token * scan_token(cache *stream, size_t prev_type){
 	switch (ch) {
 		// simple single characters
 		case '\r':
-			tok = SIMPLE_TOKEN("\r ", TOKEN_CARRAGE_RETURN);
+			tok = SIMPLE_TOKEN("\r", TOKEN_CARRAGE_RETURN);
 			break;
 		case ' ':
 			tok = SIMPLE_TOKEN(" ", TOKEN_SPACE);
@@ -889,44 +773,88 @@ static token * scan_token(cache *stream, size_t prev_type){
 	return tok;
 }
 
+void * gettokens(void *in) {
+	Thread_params *t = (Thread_params *) in;
+	int fd = *(int *) t->input;
+	free(t->input);
+	List *tl = (List *) t->output;
+	free(t);
 
-void * gettokens(void *l){
-	int ret = TOKEN_NONE;
 	size_t prev_type;
-	token *tok = NULL;
-	token_list *list = (token_list *) l;
-	if ( list->fd < 0 ){
-		token_list_set_status(list, IOERROR);
+	Token *token = NULL;
+
+	if ( fd < 0 ){
+		list_status_set_flag(tl, LIST_HALT_CONSUMER | LIST_PRODUCER_FIN);
 		return NULL;
 	}
 
-	cache * stream = cache_init(128, list->fd);
+	cache * stream = cache_init(128, fd);
 	if ( !stream ) {
-		token_list_set_status(list, MALLOCFAIL);
+		list_status_set_flag(tl,
+		  LIST_MEMFAIL | LIST_PRODUCER_FIN | LIST_HALT_CONSUMER);
 		return NULL;
 	}
 
-	while ( ret == 0 ){
-		tok = scan_token(stream, prev_type);
-		if ( tok != NULL ) {
-			switch ( tok->type ){
-				case TOKEN_TAB:
-				case TOKEN_SPACE:
-				case TOKEN_NEWLINE:
-				case TOKEN_CARRAGE_RETURN:
-					break;
-				default:
-					prev_type = tok->type;
-					break;
+	int status = 0;
+	bool eof = false;
+	while (LIST_PRODUCER_CONTINUE(status) && !eof){
+		token = scan_token(stream, prev_type);
+		if (token != NULL) {
+			switch ( token->type ){
+			case TOKEN_EOF:
+				eof = true;
+				break;
+			case TOKEN_TAB:
+			case TOKEN_SPACE:
+			case TOKEN_NEWLINE:
+			case TOKEN_CARRAGE_RETURN:
+				break;
+			default:
+				prev_type = token->type;
+				break;
 			}
-			ret = token_list_append(list, tok);
+			status = list_append_block(tl, token);
 		} else {
-			ret = ERROR;
+			status = list_status_set_flag(tl, LIST_MEMFAIL);
 		}
 	}
 
 	cache_destroy(stream);
 	// must set a status <0 to indicate completion
-	token_list_set_status(list, ret == EOF ? EOF : ERROR);
+	list_producer_fin(tl);
 	return NULL;
 }
+
+List * tokenizer_start_thread(pthread_t *tid, pthread_attr_t *attr, int fd){
+	if (fd < 0 || !tid || !attr) {
+		return NULL;
+	}
+	List *list = list_new(&token_destroy, true);
+	if (!list) {
+		return NULL;
+	}
+
+	Thread_params *t = (Thread_params *)malloc(sizeof(Thread_params));
+	if (!t) {
+		list_destroy(list);
+		return NULL;
+	}
+
+	t->input = malloc(sizeof(int));
+	if (!t->input) {
+		list_destroy(list);
+		free(t);
+		return NULL;
+	}
+
+	*(int *)t->input = fd;
+	t->output = (void *) list;
+
+	if (pthread_create(tid, attr, gettokens, (void *) t) != 0){
+		fprintf(stderr, "[!!] pthread_create failed\n");
+		list_destroy(list);
+		return NULL;
+	}
+	return list;
+}
+
