@@ -97,23 +97,31 @@ int main(int argc, char *argv[]){
 	}
 
 
+	// get tokenizer started
+	List *tl = tokenizer_start_thread(fd);
+	if (!tl) {
+		close (fd);
+		return ERROR;
+	}
+
 	// do what the user asked
-	if ( show_stats ){
-		token_output_stats(fd);
-	} else if ( show_all_tokens ){
-		token_output_all(fd);
-	} else if ( show_by_type ){
+	if (show_stats){
+		token_output_stats(tl);
+	} else if (show_all_tokens){
+		token_output_all(tl);
+	} else if (show_by_type){
 		int t = atoi(type_list);
 		if ( t < 0 ){
 			fprintf(stderr, "Invalid type\n");
 		}else {
-			token_output_by_type(fd, (size_t) t);
+			token_output_by_type(tl, (size_t) t);
 		}
 	}else {
-		token_output_beauty(fd);
+		token_output_beauty(tl);
 	}
 
-	if ( fd > 0 ){
+	list_destroy(tl);
+	if (fd > 0){
 		close(fd);
 	}
 
