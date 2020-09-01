@@ -2,32 +2,32 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-static void empty_sleep(size_t iter){
+static void empty_sleep(size_t iter) {
 	usleep(20*iter);
 }
 
-static void full_sleep(size_t iter){
+static void full_sleep(size_t iter) {
 	usleep(20*iter);
 }
 
-static void list_lock(List *l){
+static void list_lock(List *l) {
 	if (l->thread) {
 		pthread_mutex_lock(&l->thread->lock);
 	}
 }
 
-static void list_unlock(List *l){
+static void list_unlock(List *l) {
 	if (l->thread) {
 		pthread_mutex_unlock(&l->thread->lock);
 	}
 }
 
-static void list_element_destroy(List_e *e){
+static void list_element_destroy(List_e *e) {
 	e->data = NULL;
 	free(e);
 }
 
-static List_e *list_element_new(void *data){
+static List_e *list_element_new(void *data) {
 	if (!data) {
 		return NULL;
 	}
@@ -92,10 +92,10 @@ bool list_init(List *l, void (*destructor)(void *ptr), bool locked) {
 	if (locked) {
 		l->thread = malloc(sizeof(Threadinfo));
 		pthread_mutex_init(&l->thread->lock, NULL);
-		if (pthread_attr_init(&l->thread->attr) != 0){
+		if (pthread_attr_init(&l->thread->attr) != 0) {
 			return false;
 		}
-		if (pthread_attr_init(&l->thread->attr) != 0){
+		if (pthread_attr_init(&l->thread->attr) != 0) {
 			return false;
 		}
 	} else {
@@ -109,7 +109,7 @@ bool list_init(List *l, void (*destructor)(void *ptr), bool locked) {
 	return true;
 }
 
-List_status list_set_max(List *l, size_t max){
+List_status list_set_max(List *l, size_t max) {
 	list_lock(l);
 	List_status s = l->status;
 	l->max = max;
@@ -236,7 +236,7 @@ bool list_expended(List *l) {
 	return false;
 }
 
-List_status list_status_set_flag(List *l, List_status s){
+List_status list_status_set_flag(List *l, List_status s) {
 	list_lock(l);
 	l->status |= s;
 	s = l->status;
@@ -244,7 +244,7 @@ List_status list_status_set_flag(List *l, List_status s){
 	return s;
 }
 
-List_status peek_head(List *l, void **data){
+List_status peek_head(List *l, void **data) {
 	list_lock(l);
 	List_status status = l->status;
 	if (!l->head) {
@@ -274,15 +274,15 @@ void * list_peek_head_block(List *l) {
 	return data;
 }
 
-void list_consume_until(List *l, bool (*until)(void *, void *), void *args){
+void list_consume_until(List *l, bool (*until)(void *, void *), void *args) {
 	void *data = list_peek_head_block(l);
-	while (!until(data, args)){
+	while (!until(data, args)) {
 		list_destroy_head(l);
 		data = list_peek_head_block(l);
 	}
 }
 
-static inline bool check_flag(List *l, List_status flag){
+static inline bool check_flag(List *l, List_status flag) {
 	list_lock(l);
 	List_status s = l->status;
 	list_unlock(l);
