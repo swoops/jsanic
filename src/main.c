@@ -10,12 +10,12 @@
 #include "token_output.h"
 
 
-void die(const char * msg){
+void die(const char * msg) {
 	fprintf(stderr, "%s\n", msg);
 	exit(-1);
 }
 
-void usage(char *name){
+void usage(char *name) {
 	printf("%s [OPTIONS] <js_file>\n", name);
 	printf("\n");
 	printf("options:\n");
@@ -27,7 +27,7 @@ void usage(char *name){
 	printf(" -t X      list tokens with id X (get X from -l)\n");
 }
 
-int main(int argc, char *argv[]){
+int main(int argc, char *argv[]) {
 	char show_stats = 0;
 	char show_all_tokens = 0;
 	char use_stdin = 0;
@@ -39,8 +39,8 @@ int main(int argc, char *argv[]){
 	char * type_list = NULL;
 
 	int opt;
-	while ( ( opt = getopt(argc, argv, "hisalt:") ) != -1){
-		switch (opt){
+	while ((opt = getopt(argc, argv, "hisalt:")) != -1) {
+		switch (opt) {
 			case 'h':
 				usage(argv[0]);
 				return 0;
@@ -68,29 +68,29 @@ int main(int argc, char *argv[]){
 		}
 	}
 
-	if ( show_all_types == 1){
+	if (show_all_types == 1) {
 		return token_output_typeids();
 	}
 
 	// validate options
 	int sum =  show_stats + show_all_tokens + show_by_type;
-	if ( sum > 1){
+	if (sum > 1) {
 		fprintf(stderr, "Pick only one of s,a,l,t options");
 		usage(argv[0]);
 		return ERROR;
-	} else if ( use_stdin == 0 && optind >= argc ){
+	} else if (use_stdin == 0 && optind >= argc) {
 		fprintf(stderr, "Need a file to parse\n");
 		usage(argv[0]);
 		return ERROR;
 	}
 
-	if ( ! use_stdin ){
+	if (! use_stdin) {
 		if (optind >= argc) {
 			fprintf(stderr, "Need file if not using stdin\n");
 			return ERROR;
 		}
 		fname = argv[optind];
-		if ( ( fd = open(fname, O_RDONLY) ) < 0 ){
+		if ((fd = open(fname, O_RDONLY)) < 0) {
 			fprintf(stderr, "Can't open %s for reading\n", fname);
 			return IOERROR;
 		}
@@ -105,13 +105,13 @@ int main(int argc, char *argv[]){
 	}
 
 	// do what the user asked
-	if (show_stats){
+	if (show_stats) {
 		token_output_stats(tl);
-	} else if (show_all_tokens){
+	} else if (show_all_tokens) {
 		token_output_all(tl);
-	} else if (show_by_type){
+	} else if (show_by_type) {
 		int t = atoi(type_list);
-		if ( t < 0 ){
+		if (t < 0) {
 			fprintf(stderr, "Invalid type\n");
 		}else {
 			token_output_by_type(tl, (size_t) t);
@@ -121,7 +121,7 @@ int main(int argc, char *argv[]){
 	}
 
 	list_destroy(tl);
-	if (fd > 0){
+	if (fd > 0) {
 		close(fd);
 	}
 
