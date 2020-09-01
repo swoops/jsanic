@@ -773,7 +773,7 @@ static Token * scan_token(cache *stream, size_t prev_type){
 	return tok;
 }
 
-void * gettokens(void *in) {
+static void * gettokens(void *in) {
 	Thread_params *t = (Thread_params *) in;
 	int fd = *(int *) t->input;
 	free(t->input);
@@ -789,7 +789,7 @@ void * gettokens(void *in) {
 	}
 
 	cache * stream = cache_init(128, fd);
-	if ( !stream ) {
+	if (!stream) {
 		list_status_set_flag(tl,
 		  LIST_MEMFAIL | LIST_PRODUCER_FIN | LIST_HALT_CONSUMER);
 		return NULL;
@@ -825,8 +825,8 @@ void * gettokens(void *in) {
 	return NULL;
 }
 
-List * tokenizer_start_thread(pthread_t *tid, pthread_attr_t *attr, int fd){
-	if (fd < 0 || !tid || !attr) {
+List * tokenizer_start_thread(int fd){
+	if (fd < 0) {
 		return NULL;
 	}
 	List *list = list_new(&token_destroy, true);
@@ -850,11 +850,10 @@ List * tokenizer_start_thread(pthread_t *tid, pthread_attr_t *attr, int fd){
 	*(int *)t->input = fd;
 	t->output = (void *) list;
 
-	if (pthread_create(tid, attr, gettokens, (void *) t) != 0){
+	if (pthread_create(&list->thread->tid, &list->thread->attr, gettokens, (void *) t) != 0){
 		fprintf(stderr, "[!!] pthread_create failed\n");
 		list_destroy(list);
 		return NULL;
 	}
 	return list;
 }
-

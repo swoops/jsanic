@@ -9,14 +9,19 @@ typedef struct list_element {
 } List_e;
 
 typedef struct {
+	pthread_mutex_t lock;
+	pthread_t tid;
+	pthread_attr_t attr;
+} Threadinfo;
+
+typedef struct {
 	List_e *head;
 	List_e *tail;
 	void (*free)(void *ptr);
 	size_t length;
 	size_t max;
-	pthread_mutex_t lock;
-	bool locked;
 	List_status status;
+	Threadinfo *thread;
 } List;
 
 // List_status flags

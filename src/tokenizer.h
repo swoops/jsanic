@@ -52,11 +52,7 @@ typedef enum {
  * kick off the token producer, tokens will be added to the returned locked
  * list
 */
-List * tokenizer_start_thread(pthread_t *tid, pthread_attr_t *attr, int fd);
-/*
- * lexes from list->fd
-*/
-void * gettokens(void *in);
+List * tokenizer_start_thread(int fd);
 
 /*
  * unlinks first element of token list and puts it in the tok pointer

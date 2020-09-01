@@ -11,14 +11,14 @@ static void full_sleep(size_t iter){
 }
 
 static void list_lock(List *l){
-	if (l->locked) {
-		pthread_mutex_lock(&l->lock);
+	if (l->thread) {
+		pthread_mutex_lock(&l->thread->lock);
 	}
 }
 
 static void list_unlock(List *l){
-	if (l->locked) {
-		pthread_mutex_unlock(&l->lock);
+	if (l->thread) {
+		pthread_mutex_unlock(&l->thread->lock);
 	}
 }
 
@@ -51,9 +51,15 @@ List_status list_destroy_head(List *l) {
 
 static void list_clean(List *l) {
 	// we *should* have sole ownership, so no need for locks
-	if ( l->locked ) {
-		pthread_mutex_destroy(&l->lock);
-		l->locked = false;
+	// we *should* also be the consumer thread
+	if (l->thread) {
+		Threadinfo *thread = l->thread;
+		pthread_mutex_destroy(&thread->lock);
+		void *status;
+		pthread_join(thread->tid, &status);
+		pthread_attr_destroy(&thread->attr);
+		free (thread);
+		l->thread = NULL;
 	}
 
 	while (l->length) {
@@ -84,15 +90,23 @@ bool list_init(List *l, void (*destructor)(void *ptr), bool locked) {
 		return false;
 	}
 	if (locked) {
-		pthread_mutex_init(&l->lock, NULL);
+		l->thread = malloc(sizeof(Threadinfo));
+		pthread_mutex_init(&l->thread->lock, NULL);
+		if (pthread_attr_init(&l->thread->attr) != 0){
+			return false;
+		}
+		if (pthread_attr_init(&l->thread->attr) != 0){
+			return false;
+		}
+	} else {
+		l->thread = NULL;
 	}
 
-	l->locked = locked;
 	l->free = destructor;
 	l->status = LIST_EMPTY;
 	l->max = 0;
 	l->length = 0;
-	return l;
+	return true;
 }
 
 List_status list_set_max(List *l, size_t max){
@@ -116,19 +130,19 @@ List *list_new(void (*destructor)(void *ptr), bool locked) {
 }
 
 List_status list_append(List *l, void *data) {
+	list_lock(l);
+	List_status status = l->status;
+	if (LIST_IS_FULL(status) || LIST_IS_HALT_PRODUCER(status)) {
+		list_unlock(l);
+		return status;
+	}
+
 	List_e *e = list_element_new(data);
 	if (!e) {
+		list_unlock(l);
 		return LIST_MEMFAIL;
 	}
 	e->data = data;
-
-	list_lock(l);
-	List_status status = l->status;
-	if (LIST_IS_FULL(status) || LIST_IS_HALT_CONSUMER(status)) {
-		list_unlock(l);
-		list_element_destroy(e);
-		return status;
-	}
 
 	List_e *old_tail = l->tail;
 	if (old_tail) {
@@ -139,9 +153,9 @@ List_status list_append(List *l, void *data) {
 		l->head = e;
 		LIST_USET_EMPTY(l->status);
 	}
-
 	l->tail = e;
 	l->length++;
+
 	list_unlock(l);
 	return status;
 }
@@ -176,6 +190,7 @@ List_status list_dequeue(List *l, void **data) {
 	l->head = old_head->n;
 	l->length--;
 	if (l->length == 0) {
+		l->tail = NULL;
 		LIST_SET_EMPTY(l->status);
 	}
 	list_unlock(l);
@@ -241,14 +256,18 @@ List_status peek_head(List *l, void **data){
 	return status;
 }
 
-void * list_peek_head_block(List *l){
+void * list_peek_head_block(List *l) {
 	void *data = NULL;
 	List_status s;
-	size_t i;
-	while (!data){
+	size_t i = 0;
+	for (;;) {
 		s = peek_head(l, &data);
 		if (LIST_IS_HALT_CONSUMER(s) || LIST_IS_DONE(s)) {
+			l->free(data);
 			return NULL;
+		}
+		if (data) {
+			break;
 		}
 		empty_sleep(i++);
 	}

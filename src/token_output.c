@@ -16,49 +16,7 @@ typedef struct Beauty {
 	char *tab;
 } Beauty;
 
-
 static int token_type_name(size_t type, char **ret);
-
-int cleanup_pthread_for_tokens(pthread_t *tid, pthread_attr_t *attr){
-	void * status;
-	if ( pthread_join(*tid, &status) != 0 ){
-		fprintf(stderr, "[!!] Join failed\n");
-		return ERROR_PTHREAD_FAIL;
-	}
-
-	if ( pthread_attr_destroy(attr) != 0 ){
-		fprintf(stderr, "Failed to destroy pthread attr\n");
-		return ERROR_PTHREAD_FAIL;
-	}
-	return 0;
-}
-
-
-int threaded_printer(int fd, void *func, void *args){
-	if (!func) {
-		return ERROR;
-	}
-	pthread_t tid;
-	pthread_attr_t attr;
-	if (pthread_attr_init(&attr) != 0){
-		perror("Failed pthread_attr_init: ");
-		return ERROR;
-	}
-
-	List *list = tokenizer_start_thread(&tid, &attr, fd);
-	if (!list) {
-		return ERROR;
-	}
-
-	int (*fun_ptr)(List *, void *) = func;
-	int ret = (fun_ptr)(list, args);
-	if (ret == EOF) {
-		ret = 0;
-	}
-	cleanup_pthread_for_tokens(&tid, &attr);
-	list_destroy(list);
-	return ret;
-}
 
 int token_output_typeids(){
 	size_t i;
@@ -232,7 +190,7 @@ static void beautify_in_line(List *list, Beauty *state){
  * each beautify_* function consumes one token and then returns to the below
  * loop
 */
-static void consumer_beautify(List *list){
+int token_output_beauty(List *list){
 	Beauty state;
 	state.depth = 0;
 	state.depth_reset = 0;
@@ -250,9 +208,11 @@ static void consumer_beautify(List *list){
 				break;
 		}
 	}
+	// TODO: return a valid status
+	return 0;
 }
 
-void consumer_stats(List *list){
+int token_output_stats(List *list){
 	size_t token_count=0;
 	size_t token_lines = 1;
 	size_t token_unknown = 0;
@@ -284,7 +244,7 @@ void consumer_stats(List *list){
 		if ( token->charnum > token_charnum ){
 			token_charnum = token->charnum;
 		}
-		switch ( token->type ){
+		switch (token->type){
 			case TOKEN_ERROR:
 				token_unknown++;
 				break;
@@ -306,9 +266,11 @@ void consumer_stats(List *list){
 		}
 		list->free(token);
 	}
+	// TODO: return a status
+	return 0;
 }
 
-static int consumer_all(List *list, void *unused){
+int token_output_all(List *list){
 	size_t line=1;
 	size_t token_count=0;
 	int ret = 0;
@@ -339,18 +301,17 @@ static int consumer_all(List *list, void *unused){
 	return ret;
 }
 
-static int consumer_by_type(List *list, void *type_id){
-	size_t type = *(size_t *)type_id;
+int token_output_by_type(List *list, size_t type){
 	char *name = NULL;
-	size_t line = 1;
-	size_t i=0;
-	Token *token;
 	int ret = token_type_name(type, &name);
 	if (ret){
 		return ERROR;
 	}
 
 	fprintf(stderr, "seraching for: %s\n", name);
+	size_t line = 1;
+	size_t i=0;
+	Token *token;
 	while ((token = list_dequeue_block(list))){
 		i++;
 		if ( token->type == type ){
@@ -621,26 +582,3 @@ static int token_type_name(size_t type, char **name_ret){
 		*name_ret = name;
 	return ret;
 }
-
-int token_output_beauty(int fd){
-	return threaded_printer(fd, consumer_beautify, NULL);
-}
-
-int token_output_stats(int fd){
-	return threaded_printer(fd, consumer_stats, NULL);
-}
-
-int token_output_all(int fd){
-	return threaded_printer(fd, consumer_all, NULL);
-}
-
-int token_output_by_type(int fd, size_t type){
-	// check the type is correct before we go making threads n chunks
-	// hmmm threads n chunks sounds like a terrible cereal
-	if ( token_type_name(type, NULL) != 0 ){
-		fprintf(stderr, "Unkown tokend type\n");
-		return ERROR;
-	}
-	return threaded_printer(fd, consumer_by_type, (void*) &type);
-}
-
