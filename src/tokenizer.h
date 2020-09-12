@@ -1,19 +1,10 @@
 #include <pthread.h>
 #include "list.h"
 
-typedef struct token_data Token;
-struct  token_data {
-	char *value;
-	size_t length;
-	size_t charnum;
-	int type;
-	unsigned int flags;
-};
-
 typedef enum {
-
 	// special chars
 	TOKEN_NONE = 0,
+	TOKEN_STOP,
 	TOKEN_ERROR, TOKEN_EOF,
 
 	// whiltespace, meaningless
@@ -47,6 +38,15 @@ typedef enum {
 	TOKEN_VARIABLE,
 } tokentype;
 
+typedef struct token_data Token;
+struct  token_data {
+	char *value;
+	size_t length;
+	size_t charnum;
+	tokentype type;
+	unsigned int flags;
+};
+
 
 /*
  * kick off the token producer, tokens will be added to the returned locked
@@ -68,10 +68,16 @@ Token * token_list_dequeue(List *tl);
 /*
  * consumes whitespace characters, returns the next token type
 */
-size_t token_list_consume_white_peek(List *tl);
+tokentype token_list_consume_white_peek(List *tl);
 
+/*
+ * removes whitespace from tail of token list
+*/
+void token_list_snip_white_tail(List *tl);
 
 /*
  * peeks the type of the next token in the list, does not consume the token
 */
 size_t token_list_peek_type(List *tl);
+
+List *token_list_new(bool locked);

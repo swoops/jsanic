@@ -50,7 +50,8 @@ typedef struct {
 bool list_append_block(List *l, void *data);
 void * list_dequeue_block(List *l);
 void list_consume_until(List *l, bool (*until)(void *, void *), void *args);
-void list_destroy_by_consumer(List *l);
+void list_consume_tail_until(List *l, bool (*until)(void *, void *), void *args);
+void list_destroy(List *l);
 void * list_peek_head_block(List *l);
 List_status list_status_set_flag(List *l, List_status s);
 List_status list_set_max(List *l, size_t max);
@@ -59,8 +60,6 @@ List_status list_set_max(List *l, size_t max);
 List *list_new(void (*destructor)(void *ptr), bool locked);
 // init and already allocated list
 bool list_init(List *l, void (*destructor)(void *ptr), bool locked);
-// clean and free list
-void list_destroy(List *l);
 List_status list_append(List *l, void *data);
 List_status list_dequeue(List *l, void **data);
 

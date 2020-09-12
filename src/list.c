@@ -1,6 +1,36 @@
 #include "list.h"
 #include <stdlib.h>
 #include <unistd.h>
+#include <stdio.h>
+
+#define DEBUG 1
+#ifdef DEBUG
+#include <assert.h>
+static void validate_list(List *l) {
+	if (!l->thread) {
+		assert(LIST_IS_PRODUCER_FIN(l->status));
+	}
+	if (l->length == 0) {
+		assert (l->head == NULL && l->tail == NULL && LIST_IS_EMPTY(l->status));
+		return;
+	} 
+	if (l->length == 1) {
+		assert(l->head == l->tail && l->head != NULL );
+		assert(l->head->n == NULL && l->head->p == NULL);
+		return;
+	} 
+	List_e *ptr = l->head;
+	size_t i = 0;
+	while (ptr) {
+		if (ptr->n) {
+			assert(ptr->n->p == ptr);
+		}
+		i++;
+		ptr = ptr->n;
+	}
+	assert(i==l->length);
+}
+#endif
 
 static void empty_sleep(size_t iter) {
 	usleep(20*iter);
@@ -14,9 +44,16 @@ static void list_lock(List *l) {
 	if (l->thread) {
 		pthread_mutex_lock(&l->thread->lock);
 	}
+#ifdef DEBUG
+		validate_list(l);
+#endif
 }
 
+
 static void list_unlock(List *l) {
+#ifdef DEBUG
+		validate_list(l);
+#endif
 	if (l->thread) {
 		pthread_mutex_unlock(&l->thread->lock);
 	}
@@ -43,11 +80,38 @@ static List_e *list_element_new(void *data) {
 List_status list_destroy_head(List *l) {
 	void *data = NULL;
 	List_status s = list_dequeue(l, &data);
-	if (! LIST_IS_EMPTY(s)) {
-		l->free(data);
-	}
+	l->free(data);
 	return s;
 }
+
+static inline void list_destroy_tail(List *l) {
+#ifdef DEBUG
+	validate_list(l);
+#endif
+	if (l->thread) {
+		fprintf(stderr, "[!!] Can't get tail when producers and consuers fight over it!!!\n");
+		return;
+	} else if (l->length == 0) {
+		return;
+	} else if (l->length == 1) {
+		// head is tail
+		list_destroy_head(l);
+		return;
+	}
+
+	List_e *tail = l->tail;
+
+	// second to last element, becomes last element
+	l->tail = tail->p;
+	// new last element's next will point to NULL
+	l->tail->n = NULL;
+	// free up the data in the element
+	l->free(tail->data);
+	// free up the element envelope
+	l->length--;
+	list_element_destroy(tail);
+}
+
 
 static void list_clean(List *l) {
 	// we *should* have sole ownership, so no need for locks
@@ -67,12 +131,15 @@ static void list_clean(List *l) {
 	}
 }
 
-void list_destroy(List *l) {
-	list_clean(l);
-	free(l);
+static void list_free(List *l) {
+	if (l) {
+		list_clean(l);
+		free(l->thread);
+		free(l);
+	}
 }
 
-void list_destroy_by_consumer(List *l) {
+void list_destroy(List *l) {
 	// tell producer to stop
 	list_halt_producer(l);
 
@@ -82,15 +149,25 @@ void list_destroy_by_consumer(List *l) {
 		usleep(5);
 		s = list_destroy_head(l);
 	}
-	list_destroy(l);
+	list_free(l);
 }
 
 bool list_init(List *l, void (*destructor)(void *ptr), bool locked) {
 	if (!l || !destructor) {
 		return false;
 	}
+	l->free = destructor;
+	l->status = LIST_EMPTY;
+	l->head = NULL;
+	l->tail = NULL;
+	l->max = 0;
+	l->length = 0;
+
 	if (locked) {
 		l->thread = malloc(sizeof(Threadinfo));
+		if (!l->thread) {
+			return false;
+		}
 		pthread_mutex_init(&l->thread->lock, NULL);
 		if (pthread_attr_init(&l->thread->attr) != 0) {
 			return false;
@@ -100,12 +177,9 @@ bool list_init(List *l, void (*destructor)(void *ptr), bool locked) {
 		}
 	} else {
 		l->thread = NULL;
+		l->status |= LIST_PRODUCER_FIN;
 	}
 
-	l->free = destructor;
-	l->status = LIST_EMPTY;
-	l->max = 0;
-	l->length = 0;
 	return true;
 }
 
@@ -119,9 +193,6 @@ List_status list_set_max(List *l, size_t max) {
 
 List *list_new(void (*destructor)(void *ptr), bool locked) {
 	List *l = (List *) malloc(sizeof(List));
-	if (!l) {
-		return NULL;
-	}
 	if (!list_init(l, destructor, locked)) {
 		free(l);
 		return NULL;
@@ -192,6 +263,8 @@ List_status list_dequeue(List *l, void **data) {
 	if (l->length == 0) {
 		l->tail = NULL;
 		LIST_SET_EMPTY(l->status);
+	} else if (l->length == 1) {
+		l->head->p = NULL;
 	}
 	list_unlock(l);
 
@@ -274,9 +347,25 @@ void * list_peek_head_block(List *l) {
 	return data;
 }
 
+static inline void * list_peek_tail(List *l) {
+	if (l->thread) {
+		fprintf(stderr, "[!!] Can't get tail when producers and consuers fight over it!!!\n");
+		return NULL;
+	}
+	return l->tail->data;
+}
+
+void list_consume_tail_until(List *l, bool (*until)(void *, void *), void *args) {
+	void *data = list_peek_tail(l);
+	while (until(data, args)) {
+		list_destroy_tail(l);
+		data = list_peek_tail(l);
+	}
+}
+
 void list_consume_until(List *l, bool (*until)(void *, void *), void *args) {
 	void *data = list_peek_head_block(l);
-	while (!until(data, args)) {
+	while (until(data, args)) {
 		list_destroy_head(l);
 		data = list_peek_head_block(l);
 	}

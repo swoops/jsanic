@@ -21,18 +21,33 @@
 
 static bool until_not_white(void *data, void *args) {
 	Token *token = (Token *) data;
-	size_t type = token->type;
-	if (type != TOKEN_SPACE && type != TOKEN_NEWLINE && type != TOKEN_TAB) {
+	if (!data) {
+		*(tokentype *) args = TOKEN_STOP;
 		return false;
 	}
-	*(size_t *) args = type;
-	return true;
+	tokentype type = token->type;
+	switch (type) {
+		case TOKEN_SPACE:
+		case TOKEN_NEWLINE:
+		case TOKEN_CARRAGE_RETURN:
+		case TOKEN_TAB:
+			// continue
+			return true;
+		default:
+			*(tokentype *) args = type;
+			return false; // stop
+	}
 }
 
-size_t token_list_consume_white_peek(List *tl) {
-	size_t type = TOKEN_NONE;
+tokentype token_list_consume_white_peek(List *tl) {
+	tokentype type = TOKEN_NONE;
 	list_consume_until(tl, until_not_white, (void *) &type);
 	return type;
+}
+
+void token_list_snip_white_tail(List *tl) {
+	tokentype type = TOKEN_NONE;
+	list_consume_tail_until(tl, until_not_white, &type);
 }
 
 size_t token_list_peek_type(List *tl) {
@@ -524,6 +539,7 @@ static Token * new_token_multi_line_comment(cache *stream, size_t charnum) {
 	return tok;
 }
 
+#define SIMPLE_TOKEN(value, name) new_token_static(value, name, sizeof(value), charnum);
 static Token * scan_token(cache *stream, size_t prev_type) {
 	size_t charnum = cache_getcharnum(stream);
 	int ch = cache_getc(stream);
@@ -553,7 +569,6 @@ static Token * scan_token(cache *stream, size_t prev_type) {
 		}
 		return tok;
 	}
-#define SIMPLE_TOKEN(value, name) new_token_static(value, name, sizeof(value), charnum);
 	switch (ch) {
 		// simple single characters
 		case '\r':
@@ -795,9 +810,9 @@ static void * gettokens(void *in) {
 		return NULL;
 	}
 
-	int status = 0;
+	bool status = true;
 	bool eof = false;
-	while (LIST_PRODUCER_CONTINUE(status) && !eof) {
+	while (status && !eof) {
 		token = scan_token(stream, prev_type);
 		if (token != NULL) {
 			switch (token->type) {
@@ -815,7 +830,7 @@ static void * gettokens(void *in) {
 			}
 			status = list_append_block(tl, token);
 		} else {
-			status = list_status_set_flag(tl, LIST_MEMFAIL);
+			status = LIST_PRODUCER_CONTINUE(list_status_set_flag(tl, LIST_MEMFAIL));
 		}
 	}
 
@@ -825,11 +840,15 @@ static void * gettokens(void *in) {
 	return NULL;
 }
 
+List *token_list_new(bool locked) {
+	return list_new(&token_destroy, locked);
+}
+
 List * tokenizer_start_thread(int fd) {
 	if (fd < 0) {
 		return NULL;
 	}
-	List *list = list_new(&token_destroy, true);
+	List *list = token_list_new(true);
 	if (!list) {
 		return NULL;
 	}
