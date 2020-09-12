@@ -190,13 +190,13 @@ static void beautify_in_line(List *list, Beauty *state){
  * each beautify_* function consumes one token and then returns to the below
  * loop
 */
-int token_output_beauty(List *list){
+int token_output_beauty(List *list) {
 	Beauty state;
 	state.depth = 0;
 	state.depth_reset = 0;
 	state.current = B_START;
 	state.tab = "  ";
-	while ( state.current != B_DONE ){
+	while (state.current != B_DONE){
 		switch (state.current){
 			case B_START:
 				beautify_start(list, &state);
@@ -263,6 +263,8 @@ int token_output_stats(List *list){
 			case TOKEN_QUESTIONMARK:
 				token_terinaries++;
 				break;
+			default:
+				break;
 		}
 		list->free(token);
 	}
@@ -293,6 +295,8 @@ int token_output_all(List *list){
 				break;
 			case TOKEN_NEWLINE:
 				line++;
+				break;
+			default:
 				break;
 		}
 		printf("\n");
