@@ -74,7 +74,7 @@ static void token_destroy(void *v) {
 	assert(!TOKEN_ISLINKED(tok));
 	assert(!TOKEN_ISHEAD(tok));
 	if (TOKEN_ISALLOCED(tok)) {
-		free(tok->value);
+		free((void *) tok->value);
 	}
 	free(tok);
 }

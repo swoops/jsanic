@@ -46,12 +46,15 @@ typedef struct {
 #define LIST_SET_EMPTY(x)  (x |= LIST_EMPTY)
 #define LIST_USET_EMPTY(x) (x ^= LIST_EMPTY)
 
+bool list_push(List *l, void *data);
+
 // interface for threaded consumer producer
 bool list_append_block(List *l, void *data);
 void * list_dequeue_block(List *l);
 void list_consume_until(List *l, bool (*until)(void *, void *), void *args);
 void list_consume_tail_until(List *l, bool (*until)(void *, void *), void *args);
 void list_destroy(List *l);
+List_status list_destroy_head(List *l);
 void * list_peek_head_block(List *l);
 List_status list_status_set_flag(List *l, List_status s);
 List_status list_set_max(List *l, size_t max);
@@ -62,6 +65,9 @@ List *list_new(void (*destructor)(void *ptr), bool locked);
 bool list_init(List *l, void (*destructor)(void *ptr), bool locked);
 List_status list_append(List *l, void *data);
 List_status list_dequeue(List *l, void **data);
+
+// get length of list
+size_t list_length(List *l);
 
 // tell consumer to halt
 void list_halt_consumer(List *l);

@@ -13,5 +13,4 @@ typedef struct {
  * consumer of tokens, producer of lines
 */
 List *lines_creat_start_thread(List *tokens);
-List *auto_start_lines(int fd);
-void print_lines(List *lines);
+List *lines_fd(int fd);
