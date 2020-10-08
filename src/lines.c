@@ -207,29 +207,11 @@ List *lines_creat_start_thread(List *tokens) {
 	return lines;
 }
 
-List *auto_start_lines(int fd) {
+List *lines_fd(int fd) {
 	List *l = NULL;
 	List *tl = tokenizer_start_thread(fd);
 	if (tl) {
 		 l = lines_creat_start_thread(tl);
 	}
 	return l;
-}
-
-static void print_one_lines(Line *l){
-	Token *tok = NULL;
-	while ((tok = token_list_dequeue(l->tokens)) != NULL) {
-		printf("%s", tok->value);
-		l->tokens->free(tok);
-	}
-}
-
-void print_lines(List *lines){
-	Line *l = NULL;
-	while ((l = list_dequeue_block(lines)) != NULL) {
-		print_one_lines(l);
-		printf("\n");
-		lines->free(l);
-	}
-	list_destroy(lines);
 }

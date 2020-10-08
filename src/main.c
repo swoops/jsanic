@@ -7,7 +7,7 @@
 #include <fcntl.h>
 
 #include "errorcodes.h"
-#include "lines.h"
+#include "beautify_lines.h"
 
 
 void die(const char * msg) {
@@ -86,8 +86,7 @@ int main(int argc, char *argv[]) {
 
 
 	// get tokenizer started
-	List *lines = auto_start_lines(fd);
-	print_lines(lines);
+	beautify_fd(fd, 1);
 	close(fd);
 	return 0;
 }

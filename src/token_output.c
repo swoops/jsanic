@@ -32,8 +32,8 @@ int token_output_typeids(){
 	return 0;
 }
 
-static char * token_printable(Token *tok){
-	char * ret;
+static const char * token_printable(Token *tok){
+	const char * ret;
 	switch (tok->type) {
 		case TOKEN_CARRAGE_RETURN:
 			ret = "\\r";
@@ -335,7 +335,7 @@ int token_output_by_type(List *list, size_t type){
 
 void token_print_consume_unkown(List *list){
 	size_t count = 0;
-	char * value;
+	const char * value;
 	Token *token;
 	while ((token = list_dequeue_block(list)) && count < 30){
 		if ( token->type == TOKEN_ERROR ){

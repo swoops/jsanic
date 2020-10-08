@@ -40,7 +40,7 @@ typedef enum {
 
 typedef struct token_data Token;
 struct  token_data {
-	char *value;
+	const char *value;
 	size_t length;
 	size_t charnum;
 	tokentype type;

@@ -200,6 +200,39 @@ List *list_new(void (*destructor)(void *ptr), bool locked) {
 	return l;
 }
 
+static void add_to_empty_list(List *l, List_e *e) {
+	l->head = e;
+	l->tail = e;
+	l->length = 1;
+	LIST_USET_EMPTY(l->status);
+}
+
+bool list_push(List *l, void *data) {
+	if (l->thread) {
+		fprintf(stderr, "Not allowed to push on threaded list\n");
+		return false;
+	}
+	List_e *e = list_element_new(data);
+	if (!e) {
+		return false;
+	}
+	e->data = data;
+
+	List_e *old_head = l->head;
+	if (!old_head) {
+		add_to_empty_list(l, e);
+		return true;
+	}
+	old_head->p = e;
+	e->n = old_head;
+	l->head = e;
+	l->length++;
+#ifdef DEBUG
+validate_list(l);
+#endif
+	return true;
+}
+
 List_status list_append(List *l, void *data) {
 	list_lock(l);
 	List_status status = l->status;
@@ -216,14 +249,13 @@ List_status list_append(List *l, void *data) {
 	e->data = data;
 
 	List_e *old_tail = l->tail;
-	if (old_tail) {
-		old_tail->n = e;
-		e->p = old_tail;
-	} else {
-		// no tail so list must be empty
-		l->head = e;
-		LIST_USET_EMPTY(l->status);
+	if (!old_tail) {
+		add_to_empty_list(l, e);
+		list_unlock(l);
+		return status;
 	}
+	old_tail->n = e;
+	e->p = old_tail;
 	l->tail = e;
 	l->length++;
 
@@ -371,14 +403,14 @@ void list_consume_until(List *l, bool (*until)(void *, void *), void *args) {
 	}
 }
 
-static inline bool check_flag(List *l, List_status flag) {
-	list_lock(l);
-	List_status s = l->status;
-	list_unlock(l);
-	if (s & flag) {
-		return true;
+size_t list_length(List *l) {
+	size_t ret = 0;
+	if (l)	{
+		list_lock(l);
+		ret = l->length;
+		list_unlock(l);
 	}
-	return false;
+	return ret;
 }
 
 // tell consumer to halt
