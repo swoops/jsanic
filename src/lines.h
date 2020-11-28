@@ -7,6 +7,7 @@ typedef struct {
 	List *tokens;
 	LineType type;
 	size_t num;
+	int indent;
 } Line;
 
 /*

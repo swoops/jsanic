@@ -379,7 +379,7 @@ void * list_peek_head_block(List *l) {
 	return data;
 }
 
-static inline void * list_peek_tail(List *l) {
+void *list_peek_tail(List *l) {
 	if (l->thread) {
 		fprintf(stderr, "[!!] Can't get tail when producers and consuers fight over it!!!\n");
 		return NULL;

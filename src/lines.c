@@ -26,7 +26,6 @@ static bool finish_line(List *tokens, Line *line) {
 		case TOKEN_CARRAGE_RETURN:
 			// no need for newline or whitespace at end of lines
 			token_list_snip_white_tail(line->tokens);
-			return true;
 		case TOKEN_SEMICOLON:
 		case TOKEN_OPEN_CURLY:
 			return true;
@@ -135,12 +134,13 @@ static inline bool fill_line(List *tokens, Line *line) {
 	return true;
 }
 
-static Line *line_new(size_t n) {
+static Line *line_new(size_t n, int indent) {
 	Line *l = (Line *) malloc(sizeof(Line));
 	if (l) {
 		if ((l->tokens = token_list_new(false))) {
 			l->type = LINE_NONE;
 			l->num = n;
+			l->indent = indent;
 			return l;
 		}
 	}
@@ -148,14 +148,38 @@ static Line *line_new(size_t n) {
 	return NULL;
 }
 
+static int adjust_indent(Line *line, int indent) {
+	Token *tok = (Token *) list_peek_tail(line->tokens);
+	switch (tok->type) {
+	case TOKEN_OPEN_CURLY:
+		// low, but no reason to cut it close
+		if (indent < 0x70000000) {
+			return indent+1;
+		}
+		return indent;
+	case TOKEN_CLOSE_CURLY:
+		if (line->indent > 0) {
+			line->indent--;
+		}
+		if (indent > 0) {
+			return indent-1;
+		}
+	default:
+		break;
+	}
+	return indent;
+}
+
 static inline void make_lines(List *tokens, List *lines) {
 	Line *line = NULL;
 	size_t n = 0;
-	while ((line = line_new(n++))) {
+	int indent = 0;
+	while ((line = line_new(n++, indent))) {
 		if (!fill_line(tokens, line)) {
 			line_destroy(line);
 			break;
 		} 
+		indent = adjust_indent(line, indent);
 		if (!list_append_block(lines, line)) {
 			break;
 		}

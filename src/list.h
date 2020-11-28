@@ -52,6 +52,7 @@ bool list_push(List *l, void *data);
 bool list_append_block(List *l, void *data);
 void * list_dequeue_block(List *l);
 void list_consume_until(List *l, bool (*until)(void *, void *), void *args);
+void *list_peek_tail(List *l);
 void list_consume_tail_until(List *l, bool (*until)(void *, void *), void *args);
 void list_destroy(List *l);
 List_status list_destroy_head(List *l);
