@@ -53,6 +53,12 @@ static bool append_until_paren_fin(List *tokens, Line *line) {
 	return false;
 }
 
+static bool line_add_space(Line *line) {
+	Token *tok = new_token_static(" ", TOKEN_SPACE, sizeof(" "), 0);
+	line_append_or_ret(line, tok);
+	return true;
+}
+
 static bool make_logic_line(List *tokens, Line *line) {
 	// append logic token for,wihle,if, etc
 	Token *tok = token_list_dequeue(tokens);
@@ -80,6 +86,7 @@ static bool make_logic_line(List *tokens, Line *line) {
 		line->type = LINE_INVALID;
 		return finish_line(tokens, line);
 	}
+	line_add_space(line);
 
 	// get paren and everything in it
 	if (!append_until_paren_fin(tokens, line)) {
@@ -93,6 +100,7 @@ static bool make_logic_line(List *tokens, Line *line) {
 		return false;
 	} else if (t == TOKEN_OPEN_CURLY) {
 		// append curly and end line
+		line_add_space(line);
 		if (!(tok = token_list_dequeue(tokens))) {
 			return false;
 		}

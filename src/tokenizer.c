@@ -194,7 +194,7 @@ static char * alloc_numeric(cache *stream, int ch, size_t *len) {
 }
 
 
-static Token * new_token_static(char *value, size_t type, size_t length, size_t charnum) {
+Token * new_token_static(char *value, size_t type, size_t length, size_t charnum) {
 	Token *tok = token_init();
 	if (!tok) return tok;
 	tok->value = value;
