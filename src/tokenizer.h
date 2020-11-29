@@ -75,6 +75,8 @@ tokentype token_list_consume_white_peek(List *tl);
 */
 void token_list_snip_white_tail(List *tl);
 
+Token * new_token_static(char *value, size_t type, size_t length, size_t charnum);
+
 /*
  * peeks the type of the next token in the list, does not consume the token
 */
