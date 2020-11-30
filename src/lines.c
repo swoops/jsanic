@@ -27,6 +27,7 @@ static bool finish_line(List *tokens, Line *line) {
 			// no need for newline or whitespace at end of lines
 			token_list_snip_white_tail(line->tokens);
 		case TOKEN_SEMICOLON:
+		case TOKEN_CLOSE_CURLY:
 		case TOKEN_OPEN_CURLY:
 			return true;
 		default:
@@ -156,12 +157,23 @@ static Line *line_new(size_t n, int indent) {
 	return NULL;
 }
 
+#define MAXIND 0x70000000 // for overflow reasons
 static int adjust_indent(Line *line, int indent) {
 	Token *tok = (Token *) list_peek_tail(line->tokens);
+	switch (line->type) {
+	default:
+		break;
+	case LINE_FOR:
+	case LINE_WHILE:
+	case LINE_IF:
+		if (tok->type == TOKEN_CLOSE_PAREN && indent < MAXIND) {
+			return indent+1;
+		}
+	}
+
 	switch (tok->type) {
 	case TOKEN_OPEN_CURLY:
-		// low, but no reason to cut it close
-		if (indent < 0x70000000) {
+		if (indent < MAXIND) {
 			return indent+1;
 		}
 		return indent;
