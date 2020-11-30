@@ -60,6 +60,22 @@ static bool line_add_space(Line *line) {
 	return true;
 }
 
+static bool make_else_line(List *tokens, Line *line) {
+	Token *tok = token_list_dequeue(tokens);
+	if (!tok || tok->type != TOKEN_ELSE) {
+		return false;
+	}
+	line_append_or_ret(line, tok);
+
+	// eat whitespace
+	tokentype t = token_list_consume_white_peek(tokens);
+	if (t == TOKEN_OPEN_CURLY) {
+		line_add_space(line);
+		line_append_or_ret(line, token_list_dequeue(tokens));
+	}
+	return true;
+}
+
 static bool make_logic_line(List *tokens, Line *line) {
 	// append logic token for,wihle,if, etc
 	Token *tok = token_list_dequeue(tokens);
@@ -131,6 +147,12 @@ static inline bool fill_line(List *tokens, Line *line) {
 	case TOKEN_WHILE:
 		line->type = LINE_WHILE;
 		if (!make_logic_line(tokens, line)) {
+			return false;
+		}
+		break;
+	case TOKEN_ELSE:
+		line->type = LINE_ELSE;
+		if (!make_else_line(tokens, line)) {
 			return false;
 		}
 		break;
