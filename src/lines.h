@@ -1,6 +1,6 @@
 #include "tokenizer.h"
 typedef enum {
-	LINE_FOR, LINE_IF, LINE_WHILE, LINE_NONE, LINE_INVALID,
+	LINE_FOR, LINE_IF, LINE_WHILE, LINE_NONE, LINE_ELSE, LINE_INVALID,
 } LineType;
 
 typedef struct {
