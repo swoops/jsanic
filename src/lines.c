@@ -55,7 +55,7 @@ static bool append_until_paren_fin(List *tokens, Line *line) {
 }
 
 static bool line_add_space(Line *line) {
-	Token *tok = new_token_static(" ", TOKEN_SPACE, sizeof(" "), 0);
+	Token *tok = new_token_static(" ", TOKEN_SPACE, sizeof(" ")-1, 0);
 	line_append_or_ret(line, tok);
 	return true;
 }

@@ -539,7 +539,7 @@ static Token * new_token_multi_line_comment(cache *stream, size_t charnum) {
 	return tok;
 }
 
-#define SIMPLE_TOKEN(value, name) new_token_static(value, name, sizeof(value), charnum);
+#define SIMPLE_TOKEN(value, name) new_token_static(value, name, sizeof(value)-1, charnum);
 static Token * scan_token(cache *stream, size_t prev_type) {
 	size_t charnum = cache_getcharnum(stream);
 	int ch = cache_getc(stream);

@@ -3,7 +3,6 @@
 #include <unistd.h>
 #include <stdio.h>
 
-#define DEBUG 1
 #ifdef DEBUG
 #include <assert.h>
 static void validate_list(List *l) {
