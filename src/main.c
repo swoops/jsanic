@@ -16,7 +16,7 @@ void die(const char * msg) {
 }
 
 void usage(char *name) {
-	printf("%s [OPTIONS] <js_file>\n", name);
+	printf("%s [-h] <js_file>\n", name);
 }
 
 int main(int argc, char *argv[]) {
@@ -25,14 +25,11 @@ int main(int argc, char *argv[]) {
 	int fd = -1;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "hisalt:")) != -1) {
+	while ((opt = getopt(argc, argv, "h")) != -1) {
 		switch (opt) {
 		case 'h':
 			usage(argv[0]);
 			return 0;
-			break;
-		case 'i':
-			fd = 0;
 			break;
 		default:
 			usage(argv[0]);
@@ -40,17 +37,23 @@ int main(int argc, char *argv[]) {
 			break;
 		}
 	}
-	char *fname = argv[optind];
 
-	if (fd != 0) {
-		if (optind >= argc) {
-			fprintf(stderr, "Need file if not using stdin\n");
-			return ERROR;
-		}
-		if ((fd = open(fname, O_RDONLY)) < 0) {
-			fprintf(stderr, "Can't open %s for reading\n", fname);
+	if (optind == argc) { // no file provided
+		if (isatty(fileno(stdin))) {
+			usage(argv[0]);
+			fprintf(stderr, "Need file\n");
 			return IOERROR;
 		}
+		fd = 0; // input is stdin
+	} else if (optind + 1 == argc) {
+		if ((fd = open(argv[optind], O_RDONLY)) < 0) {
+			fprintf(stderr, "Can't open %s for reading\n", argv[optind]);
+			return IOERROR;
+		}
+	} else {
+		usage(argv[0]);
+		fprintf(stderr, "Invalid number of files specified\n");
+		return -1;
 	}
 
 	// get tokenizer started
