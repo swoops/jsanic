@@ -10,23 +10,28 @@ size_t cache_getcharnum(cache *c){
 
 cache * cache_init(size_t size, int fd){
 	cache *c = (cache *) malloc(sizeof(cache));
-	if ( !c ) return NULL;
+	if (!c) {
+		return NULL;
+	}
 
-	if (size <= MINCACHESIZE) size = MINCACHESIZE;
+	if (size <= MINCACHESIZE) {
+		size = MINCACHESIZE;
+	}
 	c->buf = (unsigned char *) malloc(size);
-	if ( !c->buf ) {
+	if (!c->buf) {
 		free(c);
 		return NULL;
 	}
 
 	c->charnum = 0;
-	c->eof = 0;
 	c->index = 0;
 	c->start = 0;
 	c->size = 0;
 	c->behind = 0;
 	c->real_size = size;
 	c->fd = fd;
+	c->rsize = 0;
+	c->ri = 0;
 	return c;
 }
 
@@ -35,17 +40,17 @@ void cache_destroy(cache *c){
 	free(c);
 }
 
-static int readchr(int fd){
-	ssize_t ret;
-	unsigned char buf;
-	ret = read(fd, &buf, 1);
-	if ( ret == 0 ){
-		return EOF;
-	}else if ( ret == 1 ){
-		return (int) buf;
-	}else {
-		return IOERROR;
+static int readchr(cache *c){
+	if (c->ri == 0) {
+		if ((c->rsize = read(c->fd, c->rbuf, sizeof(c->rbuf))) <= 0) {
+			return EOF;
+		}
 	}
+	int ret = c->rbuf[c->ri++];
+	if (c->ri >= c->rsize) {
+		c->ri = 0;
+	}
+	return ret;
 }
 
 int cache_getc(cache *c){
@@ -58,9 +63,8 @@ int cache_getc(cache *c){
 		return ret;
 	}
 
-	ret = readchr(c->fd);
-	if ( ret == EOF ){
-		c->eof = 1;
+	ret = readchr(c);
+	if (ret == EOF){
 		return ret;
 	}
 	c->buf[c->index] = (unsigned char) ret;

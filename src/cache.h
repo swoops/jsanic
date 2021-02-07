@@ -2,12 +2,18 @@
 #include <string.h>  //strlen
 #include <stdlib.h> // malloc
 
+#define RBUFSIZE 4096
+
 typedef struct  cache {
 	int fd;
 	unsigned char *buf;
 	size_t charnum, real_size, size;
 	size_t start,index, behind;
-	int eof;
+
+	// for buffering read
+	char rbuf[RBUFSIZE];
+	size_t ri;
+	ssize_t rsize;
 } cache;
 
 
