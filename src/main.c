@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// get tokenizer started
-	printlines(fd, 1);
+	printlines(fd, stdout);
 	close(fd);
 	return 0;
 }
