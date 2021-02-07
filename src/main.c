@@ -20,8 +20,6 @@ void usage(char *name) {
 }
 
 int main(int argc, char *argv[]) {
-	char show_all_types = 0;
-	char show_by_type = 0;
 	int fd = -1;
 
 	int opt;
