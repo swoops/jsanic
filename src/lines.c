@@ -21,16 +21,26 @@ static bool append_until_paren_fin(List *tokens, Line *line) {
 	Token *tok = NULL;
 	size_t depth = 0;
 	while ((tok = token_list_dequeue(tokens)) != NULL) {
-		line_append_or_ret(line, tok);
-		if (tok->type == TOKEN_CLOSE_PAREN) {
+		switch (tok->type) {
+		case TOKEN_CARRAGE_RETURN:
+			tokens->free(tok);
+			break;
+		case TOKEN_OPEN_PAREN:
+			line_append_or_ret(line, tok);
+			depth++;
+			break;
+		case TOKEN_CLOSE_PAREN:
+			line_append_or_ret(line, tok);
 			if (depth == 1) {
 				return true;
 			} else if (depth == 0) {
 				return false;
 			}
 			depth--;
-		} else if (tok->type == TOKEN_OPEN_PAREN) {
-			depth++;
+			break;
+		default:
+			line_append_or_ret(line, tok);
+			break;
 		}
 	}
 	return false;

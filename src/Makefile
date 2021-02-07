@@ -9,6 +9,8 @@ ALL = $(TARGET)
 $(TARGET): $(OBJ)
 	$(CC) $(CFLAGS) -o $@ $^
 
+debug: CFLAGS+=-fsanitize=address
+debug: $(TARGET)
 
 .PHONY: clean install uninstall
 install: $(TARGET)
