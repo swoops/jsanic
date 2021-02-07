@@ -12,10 +12,10 @@ static bool put_token(Token *tok, FILE *fp) {
 }
 
 static bool put_newline(FILE *fp) {
-	if (fwrite("\n", 1, 1, fp) == 1) {
-		return true;
+	if (fputc('\n', fp) == EOF) {
+		return false;
 	}
-	return false;
+	return true;
 }
 
 static bool put_indent(int count, FILE *fp) {
@@ -24,7 +24,7 @@ static bool put_indent(int count, FILE *fp) {
 	}
 	int i;
 	for (i=0; i<count; i++) {
-		if (fwrite("\t", 1, 1, fp) != 1) {
+		if (fputc('\t', fp) == EOF) {
 			return false;
 		}
 	}

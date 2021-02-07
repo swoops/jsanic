@@ -230,8 +230,6 @@ static size_t get_identifyer_type(char *buf) {
 		case 'd':
 			if (strcmp("do", buf) == 0)
 				ret = TOKEN_FOR;
-			else if (strcmp("function", buf) == 0)
-				ret = TOKEN_DO;
 			break;
 		case 'e':
 			if (strcmp("else", buf) == 0)
