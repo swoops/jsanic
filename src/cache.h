@@ -11,7 +11,7 @@ typedef struct  cache {
 	size_t start,index, behind;
 
 	// for buffering read
-	char rbuf[RBUFSIZE];
+	unsigned char rbuf[RBUFSIZE];
 	size_t ri;
 	ssize_t rsize;
 } cache;
