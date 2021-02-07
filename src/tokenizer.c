@@ -50,7 +50,7 @@ void token_list_snip_white_tail(List *tl) {
 	list_consume_tail_until(tl, until_not_white, &type);
 }
 
-size_t token_list_peek_type(List *tl) {
+tokentype token_list_peek_type(List *tl) {
 	Token *t = (Token *) list_peek_head_block(tl);
 	if (t) {
 		return t->type;

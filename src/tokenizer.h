@@ -80,6 +80,6 @@ Token * new_token_static(char *value, size_t type, size_t length, size_t charnum
 /*
  * peeks the type of the next token in the list, does not consume the token
 */
-size_t token_list_peek_type(List *tl);
+tokentype token_list_peek_type(List *tl);
 
 List *token_list_new(bool locked);

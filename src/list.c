@@ -263,6 +263,9 @@ List_status list_append(List *l, void *data) {
 }
 
 bool list_append_block(List *l, void *data) {
+	if (!data) {
+		return false;
+	}
 	List_status s;
 	size_t i = 1;
 	while (1) {
