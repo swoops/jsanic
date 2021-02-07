@@ -17,6 +17,22 @@ static void line_destroy(Line *l) {
 	}
 }
 
+static bool append_until_paren_fin(List *tokens, Line *line, size_t depth) {
+	Token *tok = NULL;
+	while ((tok = token_list_dequeue(tokens)) != NULL) {
+		line_append_or_ret(line, tok);
+		if (tok->type == TOKEN_CLOSE_PAREN) {
+			if (depth == 1) {
+				return true;
+			}
+			depth--;
+		} else if (tok->type == TOKEN_OPEN_PAREN) {
+			depth++;
+		}
+	}
+	return false;
+}
+
 static bool finish_line(List *tokens, Line *line) {
 	Token *tok = NULL;
 	while ((tok = token_list_dequeue(tokens)) != NULL) {
@@ -26,29 +42,17 @@ static bool finish_line(List *tokens, Line *line) {
 		case TOKEN_CARRAGE_RETURN:
 			// no need for newline or whitespace at end of lines
 			token_list_snip_white_tail(line->tokens);
+			return true;
+		case TOKEN_OPEN_PAREN:
+			append_until_paren_fin(tokens, line, 1);
+			break;
+		case TOKEN_COMMA:
 		case TOKEN_SEMICOLON:
 		case TOKEN_CLOSE_CURLY:
 		case TOKEN_OPEN_CURLY:
 			return true;
 		default:
 			break;
-		}
-	}
-	return false;
-}
-
-static bool append_until_paren_fin(List *tokens, Line *line) {
-	Token *tok = NULL;
-	size_t count = 0;
-	while ((tok = token_list_dequeue(tokens)) != NULL) {
-		line_append_or_ret(line, tok);
-		if (tok->type == TOKEN_CLOSE_PAREN) {
-			if (count == 1) {
-				return true;
-			}
-			count--;
-		} else if (tok->type == TOKEN_OPEN_PAREN) {
-			count++;
 		}
 	}
 	return false;
@@ -106,7 +110,7 @@ static bool make_logic_line(List *tokens, Line *line) {
 	line_add_space(line);
 
 	// get paren and everything in it
-	if (!append_until_paren_fin(tokens, line)) {
+	if (!append_until_paren_fin(tokens, line, 0)) {
 		line->type = LINE_NONE;
 		return false;
 	}
