@@ -7,24 +7,29 @@ for you.
 Check out this overly contrived example:
 
 ```sh
-> for i in {1..100000}; do echo "a = {"; done | /usr/bin/time -f 'seconds: %e mem: %M kb' ./jsanic -i >/dev/null
-seconds: 0.91 mem: 3164 kb
-> for i in {1..100000}; do echo "a = {"; done | /usr/bin/time -f 'seconds: %e mem: %M kb' js-beautify >/dev/null
+> for i in {1..100000}; do echo "a = {"; done | /usr/bin/time -f 'seconds: %e mem: %M kb' js-beautify
 Command terminated by signal 9
-seconds: 13.70 mem: 2986796 kb
+seconds: 39.28 mem: 13323876 kb
+for i in {1..100000}; do echo "a = {"; done | /usr/bin/time -f 'seconds: %e mem: %M kb' ./jsanic >/dev/null
+seconds: 0.50 mem: 32080 kb
 ```
 
 # why
 
-While testing a website, I ran into a 5.6 MB JavaScript file. My system is not
-weak, it has an Intel i7 and 16G of ram and I run a minimal desktop. Yet every
-beautifier I threw at this file crashed after prolonged execution. Eventually
-js-beautify (a great tool) got it after I closed all other resource hogs
-(Firefox, Java, Chrome).  It took a long time and there were still many lines
-that were thousands of characters long.
+A while back I was testing a website that had a single 5.6MB JS file. The file
+was minified. At the time I had trouble finding a tool that could beautify it
+without being killed by the kernel. Even Firefox would crash in attempting to
+beautify it. Learning to parse JS sounded fun anyways, so I wrote this tool.
 
-I want something better and I want to learn about compilers anyway. May as well
-write my own parser. 
+The file in question ended up getting beautified by js-beautify. My tool will
+run faster and with lower mem usage though.
+
+```sh
+> /usr/bin/time -f 'seconds: %e mem: %M kb' js-beautify /tmp/js_file.js > out.js
+seconds: 28.40 mem: 470208 kb
+> /usr/bin/time -f 'seconds: %e mem: %M kb' ./jsanic /tmp/js_file.js > out.js
+seconds: 1.85 mem: 68544 kb
+```
 
 # goal
 
