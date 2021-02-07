@@ -127,8 +127,7 @@ static char * alloc_identifyer(cache *stream, int ch, size_t *len) {
 		}
 		if (i+4 > size) {
 			size*=2;
-			buf = realloc(buf, size);
-			if (!buf) {
+			if ((buf = realloc(buf, size)) == NULL ) {
 				cache_step_backcount(stream, i);
 				return NULL;
 			}
@@ -142,8 +141,7 @@ static char * alloc_identifyer(cache *stream, int ch, size_t *len) {
 	}
 	buf[i] = 0;
 	*len = i;
-	buf = realloc(buf, i+3);
-	if (!buf) {
+	if ((buf = realloc(buf, i+3)) == NULL) {
 		cache_step_backcount(stream, i);
 		return NULL;
 	}
@@ -169,8 +167,7 @@ static char * alloc_numeric(cache *stream, int ch, size_t *len) {
 		}
 		if (i+4 > size) {
 			size*=2;
-			buf = realloc(buf, size);
-			if (!buf) {
+			if ((buf = realloc(buf, size)) == NULL) {
 				cache_step_backcount(stream, i);
 				return NULL;
 			}
@@ -184,8 +181,7 @@ static char * alloc_numeric(cache *stream, int ch, size_t *len) {
 	}
 	buf[i] = 0;
 	*len = i;
-	buf = realloc(buf, i+3);
-	if (!buf) {
+	if ((buf = realloc(buf, i+3)) == NULL) {
 		cache_step_backcount(stream, i);
 		return NULL;
 	}
@@ -315,8 +311,7 @@ static char * alloc_string(cache *stream, int start, size_t *len) {
 		ch = cache_getc(stream);
 		if (i+4 > size) {
 			size*=2;
-			buf = realloc(buf, size);
-			if (!buf) {
+			if ((buf = realloc(buf, size)) == NULL) {
 				cache_step_backcount(stream, i);
 				return NULL;
 			}
@@ -330,18 +325,19 @@ static char * alloc_string(cache *stream, int start, size_t *len) {
 		} else if (ch == start) {
 			break; // found it
 		} else if (ch < 0) {
-			i--;
-			cache_step_back(stream);
-			break; // error, just end the string early
+			cache_step_backcount(stream, i);
+			free(buf);
+			return NULL;
 		}
 	}
 	buf[i+1] = 0;
 	*len = i+1;
-	buf = realloc(buf, i+3);
-	if (!buf) {
+
+	if ((buf = realloc(buf, i+3)) == NULL) {
 		cache_step_backcount(stream, i);
 		return NULL;
 	}
+
 	return buf;
 }
 
@@ -382,8 +378,9 @@ static char * alloc_line_comment(cache *stream, size_t *len) {
 		ch = cache_getc(stream);
 		if (i+3 > size) {
 			size += 16;
-			buf = (char *) realloc(buf, size);
-			if (!buf) return NULL;
+			if ((buf = (char *) realloc(buf, size)) == NULL) {
+				return NULL;
+			}
 		}
 		buf[i] = ch;
 	}
@@ -393,8 +390,9 @@ static char * alloc_line_comment(cache *stream, size_t *len) {
 		cache_step_back(stream);
 		i--;
 	}
-	buf = (char *) realloc(buf, i+3);
-	if (!buf) return NULL;
+	if ((buf = (char *) realloc(buf, i+3)) == NULL) {
+		return NULL;
+	}
 	*len = i;
 	buf[i] = '\x00';
 	return buf;
@@ -428,8 +426,9 @@ static char * alloc_multi_line_comment(cache *stream, size_t *len) {
 		if (ch < 0) break;
 		if (i+3 > size) {
 			size += 16;
-			buf = (char *) realloc(buf, size);
-			if (!buf) return NULL;
+			if ((buf = (char *) realloc(buf, size)) == NULL ) {
+				return NULL;
+			}
 		}
 		buf[i] = ch;
 		if (prev == '*' && ch == '/') break;
@@ -440,8 +439,9 @@ static char * alloc_multi_line_comment(cache *stream, size_t *len) {
 		cache_step_back(stream);
 		i--;
 	}
-	buf = (char *) realloc(buf, i+3);
-	if (!buf) return NULL;
+	if ((buf = (char *) realloc(buf, i+3)) == NULL) {
+		return NULL;
+	}
 	*len = i+1;
 	buf[i+1] = '\x00';
 	return buf;
@@ -462,8 +462,9 @@ static char * alloc_regex(cache *stream, size_t *len) {
 		ch = cache_getc(stream);
 		if (i+3 > size) {
 			size += 16;
-			buf = (char *) realloc(buf, size);
-			if (!buf) return NULL;
+			if ((buf = (char *) realloc(buf, size)) == NULL) {
+				return NULL;
+			}
 		}
 		buf[i] = ch;
 		if (end_slash) {
@@ -502,8 +503,9 @@ static char * alloc_regex(cache *stream, size_t *len) {
 		cache_step_back(stream);
 		i--;
 	}
-	buf = (char *) realloc(buf, i+3);
-	if (!buf) return NULL;
+	if ((buf = (char *) realloc(buf, i+3)) == NULL) {
+		return NULL;
+	}
 	*len = i;
 	buf[i] = '\x00';
 	return buf;
@@ -830,12 +832,12 @@ static void * gettokens(void *in) {
 			}
 			status = list_append_block(tl, token);
 		} else {
+			fprintf(stderr, "Error parsing token at char position %ld\n", cache_getcharnum(stream));
 			status = LIST_PRODUCER_CONTINUE(list_status_set_flag(tl, LIST_MEMFAIL));
 		}
 	}
 
 	cache_destroy(stream);
-	// must set a status <0 to indicate completion
 	list_producer_fin(tl);
 	return NULL;
 }

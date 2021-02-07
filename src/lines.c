@@ -301,6 +301,7 @@ List *lines_creat_start_thread(List *tokens) {
 		fprintf(stderr, "[!!] pthread_create failed\n");
 		list_destroy(tokens);
 		list_destroy(lines);
+		free(t);
 		return NULL;
 	}
 	return lines;
