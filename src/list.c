@@ -1,6 +1,5 @@
 #include "list.h"
 #include <stdlib.h>
-#include <unistd.h>
 #include <stdio.h>
 
 #ifdef DEBUG
@@ -30,14 +29,6 @@ static void validate_list(List *l) {
 	assert(i==l->length);
 }
 #endif
-
-static void empty_sleep(size_t iter) {
-	usleep(20*iter);
-}
-
-static void full_sleep(size_t iter) {
-	usleep(20*iter);
-}
 
 static void list_lock(List *l) {
 	if (l->thread) {
@@ -145,7 +136,6 @@ void list_destroy(List *l) {
 	// may as well start cleaning while we wait for the producer to finish up
 	List_status s = list_destroy_head(l);
 	while(!LIST_IS_PRODUCER_FIN(s)) {
-		usleep(5);
 		s = list_destroy_head(l);
 	}
 	list_free(l);
@@ -267,7 +257,6 @@ bool list_append_block(List *l, void *data) {
 		return false;
 	}
 	List_status s;
-	size_t i = 1;
 	while (1) {
 		s = list_append(l, data);
 		if (LIST_IS_HALT_PRODUCER(s)) {
@@ -277,7 +266,6 @@ bool list_append_block(List *l, void *data) {
 		if (!LIST_IS_FULL(s)) {
 			break;
 		}
-		full_sleep(i++);
 	}
 	return true;
 }
@@ -314,7 +302,6 @@ List_status list_dequeue(List *l, void **data) {
 
 // This assume it is a consumer calling
 void * list_dequeue_block(List *l) {
-	size_t i=1;
 	void *data = NULL;
 	List_status stat;
 	do {
@@ -327,7 +314,6 @@ void * list_dequeue_block(List *l) {
 			l->free(data); // shouldn't be nescissary
 			return NULL;
 		}
-		empty_sleep(i++);
 	} while (!data);
 	return data;
 }
@@ -366,7 +352,6 @@ List_status peek_head(List *l, void **data) {
 void * list_peek_head_block(List *l) {
 	void *data = NULL;
 	List_status s;
-	size_t i = 0;
 	for (;;) {
 		s = peek_head(l, &data);
 		if (LIST_IS_HALT_CONSUMER(s) || LIST_IS_DONE(s)) {
@@ -376,7 +361,6 @@ void * list_peek_head_block(List *l) {
 		if (data) {
 			break;
 		}
-		empty_sleep(i++);
 	}
 	return data;
 }
