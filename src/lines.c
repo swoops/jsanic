@@ -18,13 +18,44 @@ static void line_destroy(Line *l) {
 	}
 }
 
+static tokentype line_peek_last_type(Line *line) {
+	Token *tok = (Token *) list_peek_tail(line->tokens);
+	if (!tok) {
+		return TOKEN_NONE;
+	}
+	return tok->type;
+}
+
+static bool line_add_space(Line *line) {
+	Token *tok = new_token_static(" ", TOKEN_SPACE, sizeof(" ")-1, 0);
+	line_append_or_ret(line, tok);
+	return true;
+}
+
 static bool append_until_paren_fin(List *tokens, Line *line) {
-	Token *tok = NULL;
-	size_t depth = 0;
+	Token *tok = token_list_dequeue(tokens);
+
+	line_append_or_ret(line, tok);
+	if (tok->type != TOKEN_OPEN_PAREN) {
+		return false;
+	}
+
+	if (token_list_consume_white_peek(tokens) == TOKEN_FUNCTION) {
+		return true;
+	}
+
+	size_t depth = 1;
 	while ((tok = token_list_dequeue(tokens)) != NULL) {
 		switch (tok->type) {
 		case TOKEN_CARRAGE_RETURN:
+			// remove
 			tokens->free(tok);
+			break;
+		case TOKEN_SEMICOLON:
+		case TOKEN_COMMA:
+			line_append_or_ret(line, tok);
+			token_list_consume_white_peek(line->tokens);
+			line_add_space(line);
 			break;
 		case TOKEN_OPEN_PAREN:
 			line_append_or_ret(line, tok);
@@ -45,12 +76,6 @@ static bool append_until_paren_fin(List *tokens, Line *line) {
 		}
 	}
 	return false;
-}
-
-static bool line_add_space(Line *line) {
-	Token *tok = new_token_static(" ", TOKEN_SPACE, sizeof(" ")-1, 0);
-	line_append_or_ret(line, tok);
-	return true;
 }
 
 static bool curly_end(List *tokens, Line *line) {
@@ -91,9 +116,14 @@ static bool finish_line(List *tokens, Line *line) {
 				return true;
 			}
 			break;
+		case TOKEN_OPEN_CURLY:
+			if (line_peek_last_type(line) == TOKEN_CLOSE_PAREN) {
+				line_add_space(line);
+			}
+			line_append_or_ret(line, token_list_dequeue(tokens));
+			return true;
 		case TOKEN_COMMA:
 		case TOKEN_SEMICOLON:
-		case TOKEN_OPEN_CURLY:
 			line_append_or_ret(line, token_list_dequeue(tokens));
 			return true;
 		default:
