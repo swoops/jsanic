@@ -659,7 +659,9 @@ static Token * scan_token(cache *stream, size_t prev_type) {
 					cache_step_back(stream);
 					tok = SIMPLE_TOKEN("==", TOKEN_EQUAL_EQUAL);
 				}
-			} else{
+			} else if (ch == '>') {
+				tok = SIMPLE_TOKEN("=>", TOKEN_ARROW_FUNC);
+			} else {
 				cache_step_back(stream);
 				tok = SIMPLE_TOKEN("=", TOKEN_EQUAL);
 			}
