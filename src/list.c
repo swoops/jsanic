@@ -11,12 +11,12 @@ static void validate_list(List *l) {
 	if (l->length == 0) {
 		assert (l->head == NULL && l->tail == NULL && LIST_IS_EMPTY(l->status));
 		return;
-	} 
+	}
 	if (l->length == 1) {
 		assert(l->head == l->tail && l->head != NULL );
 		assert(l->head->n == NULL && l->head->p == NULL);
 		return;
-	} 
+	}
 	List_e *ptr = l->head;
 	size_t i = 0;
 	while (ptr) {
@@ -257,16 +257,13 @@ bool list_append_block(List *l, void *data) {
 		return false;
 	}
 	List_status s;
-	while (1) {
+	do {
 		s = list_append(l, data);
 		if (LIST_IS_HALT_PRODUCER(s)) {
 			l->free(data);
 			return false;
 		}
-		if (!LIST_IS_FULL(s)) {
-			break;
-		}
-	}
+	} while (LIST_IS_FULL(s));
 	return true;
 }
 
@@ -370,7 +367,10 @@ void *list_peek_tail(List *l) {
 		fprintf(stderr, "[!!] Can't get tail when producers and consuers fight over it!!!\n");
 		return NULL;
 	}
-	return l->tail->data;
+	if (l->tail) {
+		return l->tail->data;
+	}
+	return NULL;
 }
 
 void list_consume_tail_until(List *l, bool (*until)(void *, void *), void *args) {
