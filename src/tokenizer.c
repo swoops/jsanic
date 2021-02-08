@@ -796,7 +796,7 @@ static void * gettokens(void *in) {
 	List *tl = (List *) t->output;
 	free(t);
 
-	size_t prev_type;
+	size_t prev_type = TOKEN_NONE;
 	Token *token = NULL;
 
 	if (fd < 0) {
