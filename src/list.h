@@ -1,3 +1,5 @@
+#ifndef __LIST_GAURD
+#define __LIST_GAURD 1
 #include <stdbool.h>
 #include <pthread.h>
 
@@ -75,3 +77,4 @@ void list_halt_consumer(List *l);
 // tell producer to halt
 void list_halt_producer(List *l);
 void list_producer_fin(List *l);
+#endif
