@@ -763,9 +763,10 @@ static Token * scan_token(cache *stream, size_t prev_type) {
 					tok = SIMPLE_TOKEN(">>=", TOKEN_BITSHIFT_RIGHT_ASSIGN);
 				} else if (ch == '>') {
 					tok = SIMPLE_TOKEN(">>>", TOKEN_ZERO_FILL_RIGHT_SHIFT);
+				} else {
+					cache_step_back(stream);
+					tok = SIMPLE_TOKEN(">>", TOKEN_SIGNED_BITSHIFT_RIGHT);
 				}
-				cache_step_back(stream);
-				tok = SIMPLE_TOKEN(">>", TOKEN_SIGNED_BITSHIFT_RIGHT);
 			}else{
 				cache_step_back(stream);
 				tok = SIMPLE_TOKEN(">", TOKEN_GREATER_THAN);
