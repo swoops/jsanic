@@ -8,6 +8,7 @@
 
 #include "errorcodes.h"
 #include "tokenizer.h"
+#include "decoders.h"
 #include "lines.h"
 #include "printlines.h"
 
@@ -18,20 +19,25 @@ void die(const char * msg) {
 }
 
 void usage(char *name) {
-	printf("%s [-h] <js_file>\n", name);
+	printf("%s [-hd] <js_file>\n", name);
 	printf("\n");
 	printf("\t-h\t help menu\n");
+	printf("\t-d\t do deobfuscation\n");
 }
 
 int main(int argc, char *argv[]) {
 	int fd = -1;
+	bool deobf = false;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "h")) != -1) {
+	while ((opt = getopt(argc, argv, "hd")) != -1) {
 		switch (opt) {
 		case 'h':
 			usage(argv[0]);
 			return 0;
+			break;
+		case 'd':
+			deobf = true;
 			break;
 		default:
 			usage(argv[0]);
@@ -59,6 +65,9 @@ int main(int argc, char *argv[]) {
 	}
 
 	List *l = tokenizer_start_thread(fd); // token list
+	if (deobf) {
+		l = decoder_creat_start_thread(l); // token list (deobfuscated)
+	}
 	l = lines_creat_start_thread(l); // line list
 	printlines(l, stdout);
 
