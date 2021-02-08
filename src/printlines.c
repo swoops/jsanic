@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "printlines.h"
 #include <unistd.h>
+#include "tokenizer.h"
+#include "lines.h"
+#include "printlines.h"
 
 static bool put_token(Token *tok, FILE *fp) {
 	if (fwrite(tok->value, sizeof(tok->value[0]), tok->length, fp) == tok->length) {
@@ -49,22 +51,23 @@ static int print_one_line(List *tokens, int indent, FILE *fp) {
 	return true;
 }
 
-bool printlines(int in, FILE *out) {
+bool printlines(List *lines, FILE *fp) {
 	bool ret = true;
-	List *lines = lines_fd(in);
 	if (!lines) {
 		return false;
 	}
 
 	Line *l = NULL;
 	while (ret && (l = list_dequeue_block(lines)) != NULL) {
-		ret = print_one_line(l->tokens, l->indent, out);
+		ret = print_one_line(l->tokens, l->indent, fp);
 		lines->free(l);
 	}
 	list_destroy(lines);
+
 	if (!ret) {
-		fflush(out);
+		fflush(fp);
 		fprintf(stderr, "Error while writing\n");
 	}
+
 	return ret;
 }

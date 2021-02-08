@@ -1,2 +1,3 @@
-#include "lines.h"
-bool printlines(int fd, FILE *out);
+#include <stdbool.h>
+#include "list.h"
+bool printlines(List *lines, FILE *fp);

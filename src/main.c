@@ -7,6 +7,8 @@
 #include <fcntl.h>
 
 #include "errorcodes.h"
+#include "tokenizer.h"
+#include "lines.h"
 #include "printlines.h"
 
 
@@ -17,6 +19,8 @@ void die(const char * msg) {
 
 void usage(char *name) {
 	printf("%s [-h] <js_file>\n", name);
+	printf("\n");
+	printf("\t-h\t help menu\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -54,8 +58,10 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	// get tokenizer started
-	printlines(fd, stdout);
+	List *l = tokenizer_start_thread(fd); // token list
+	l = lines_creat_start_thread(l); // line list
+	printlines(l, stdout);
+
 	close(fd);
 	return 0;
 }

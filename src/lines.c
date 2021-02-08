@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include "tokenizer.h"
 #include "lines.h"
 #include "threads.h"
 
@@ -315,13 +316,4 @@ List *lines_creat_start_thread(List *tokens) {
 		return NULL;
 	}
 	return lines;
-}
-
-List *lines_fd(int fd) {
-	List *l = NULL;
-	List *tl = tokenizer_start_thread(fd);
-	if (tl) {
-		 l = lines_creat_start_thread(tl);
-	}
-	return l;
 }

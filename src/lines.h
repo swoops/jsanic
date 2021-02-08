@@ -1,4 +1,4 @@
-#include "tokenizer.h"
+#include "list.h"
 typedef enum {
 	LINE_FOR, LINE_IF, LINE_WHILE, LINE_NONE, LINE_ELSE, LINE_INVALID,
 } LineType;
@@ -11,7 +11,6 @@ typedef struct {
 } Line;
 
 /*
- * consumer of tokens, producer of lines
+ * consumer of tokens, producer of a line
 */
 List *lines_creat_start_thread(List *tokens);
-List *lines_fd(int fd);
