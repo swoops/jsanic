@@ -614,7 +614,19 @@ static Token * scan_token(cache *stream, size_t prev_type) {
 			tok = SIMPLE_TOKEN(";", TOKEN_SEMICOLON);
 			break;
 		case '!':
-			tok = SIMPLE_TOKEN("!", TOKEN_NOT);
+			ch = cache_getc(stream);
+			if (ch == '=') {
+				ch = cache_getc(stream);
+				if (ch == '=') {
+					tok = SIMPLE_TOKEN("!==", TOKEN_NOT_EQUAL_EQUAL);
+				} else {
+					cache_step_back(stream);
+					tok = SIMPLE_TOKEN("!=", TOKEN_NOT_EQUAL);
+				}
+			} else {
+				cache_step_back(stream);
+				tok = SIMPLE_TOKEN("!", TOKEN_NOT);
+			}
 			break;
 		case '~':
 			tok = SIMPLE_TOKEN("~", TOKEN_BITWISE_NOT);
@@ -663,7 +675,7 @@ static Token * scan_token(cache *stream, size_t prev_type) {
 				tok = SIMPLE_TOKEN("=>", TOKEN_ARROW_FUNC);
 			} else {
 				cache_step_back(stream);
-				tok = SIMPLE_TOKEN("=", TOKEN_EQUAL);
+				tok = SIMPLE_TOKEN("=", TOKEN_ASSIGN);
 			}
 			break;
 		case '-':
@@ -671,7 +683,7 @@ static Token * scan_token(cache *stream, size_t prev_type) {
 			if (ch == '-') {
 				tok = SIMPLE_TOKEN("--", TOKEN_DECREMENT);
 			} else if (ch == '=') {
-				tok = SIMPLE_TOKEN("-=", TOKEN_MINUS_EQUAL);
+				tok = SIMPLE_TOKEN("-=", TOKEN_MINUS_ASSIGN);
 			} else{
 				cache_step_back(stream);
 				tok = SIMPLE_TOKEN("-", TOKEN_SUBTRACT);
@@ -680,7 +692,7 @@ static Token * scan_token(cache *stream, size_t prev_type) {
 		case '%':
 			ch = cache_getc(stream);
 			if (ch == '=') {
-				tok = SIMPLE_TOKEN("%=", TOKEN_MOD_EQUAL);
+				tok = SIMPLE_TOKEN("%=", TOKEN_MOD_ASSIGN);
 			} else{
 				cache_step_back(stream);
 				tok = SIMPLE_TOKEN("%", TOKEN_MOD);
