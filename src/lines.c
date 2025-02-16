@@ -70,6 +70,10 @@ static bool append_until_paren_fin(List *tokens, Line *line) {
 			}
 			depth--;
 			break;
+		case TOKEN_EOF:
+		case TOKEN_NEWLINE:
+			line_append_or_ret (line, tok);
+			return true;
 		default:
 			line_append_or_ret(line, tok);
 			break;
@@ -194,6 +198,7 @@ static bool finish_line(List *tokens, Line *line) {
 			}
 			line_append_or_ret(line, token_list_dequeue(tokens));
 			return true;
+		case TOKEN_EOF:
 		case TOKEN_COMMA:
 		case TOKEN_SEMICOLON:
 			line_append_or_ret(line, token_list_dequeue(tokens));
@@ -280,33 +285,18 @@ static inline bool fill_line(List *tokens, Line *line) {
 		return false;
 	case TOKEN_FOR:
 		line->type = LINE_FOR;
-		if (!make_logic_line(tokens, line)) {
-			return false;
-		}
-		break;
+		return make_logic_line(tokens, line);
 	case TOKEN_IF:
 		line->type = LINE_IF;
-		if (!make_logic_line(tokens, line)) {
-			return false;
-		}
-		break;
+		return make_logic_line(tokens, line);
 	case TOKEN_WHILE:
 		line->type = LINE_WHILE;
-		if (!make_logic_line(tokens, line)) {
-			return false;
-		}
-		break;
+		return make_logic_line(tokens, line);
 	case TOKEN_ELSE:
 		line->type = LINE_ELSE;
-		if (!make_else_line(tokens, line)) {
-			return false;
-		}
-		break;
+		return make_else_line(tokens, line);
 	default:
-		if (!finish_line(tokens, line)) {
-			return false;
-		}
-		break;
+		return finish_line(tokens, line);
 	}
 	return true;
 }
