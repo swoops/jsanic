@@ -58,25 +58,20 @@ tokentype token_list_peek_type(List *tl) {
 	return TOKEN_ERROR;
 }
 
-static Token * token_init() {
-	Token * ret = (Token *) malloc(sizeof(Token));
-	if (ret == NULL) return ret;
-	ret->value = NULL;
-	ret->flags = 0;
-	return ret;
+static inline Token *token_alloc() {
+	return (Token *)calloc (1, sizeof (Token));
 }
 
-static void token_destroy(void *v) {
-	if (!v) {
-		return;
-	}
+static void token_free(void *v) {
 	Token *tok = (Token *) v;
-	assert(!TOKEN_ISLINKED(tok));
-	assert(!TOKEN_ISHEAD(tok));
-	if (TOKEN_ISALLOCED(tok)) {
-		free((void *) tok->value);
+	if (tok) {
+		assert(!TOKEN_ISLINKED(tok));
+		assert(!TOKEN_ISHEAD(tok));
+		if (TOKEN_ISALLOCED(tok)) {
+			free((void *) tok->value);
+		}
+		free(tok);
 	}
-	free(tok);
 }
 
 Token * token_list_dequeue(List *tl) {
@@ -191,7 +186,7 @@ static char * alloc_numeric(cache *stream, int ch, size_t *len) {
 
 
 Token * new_token_static(char *value, size_t type, size_t length, size_t charnum) {
-	Token *tok = token_init();
+	Token *tok = token_alloc ();
 	if (!tok) return tok;
 	tok->value = value;
 	tok->length = length;
@@ -202,7 +197,7 @@ Token * new_token_static(char *value, size_t type, size_t length, size_t charnum
 
 static Token * new_token_error(int ch, size_t charnum) {
 	char buf[2];
-	Token *tok = token_init();
+	Token *tok = token_alloc ();
 	if (!tok) return tok;
 	buf[0] = (char) ch;
 	buf[1] = '\x00';
@@ -272,7 +267,7 @@ static size_t get_identifyer_type(char *buf) {
 }
 
 static Token * new_token_identifyer(size_t charnum, char *value, size_t len) {
-	Token *tok = token_init();
+	Token *tok = token_alloc ();
 	if (!tok) return tok;
 	TOKEN_SETALLOCED(tok);
 	tok->length = len;
@@ -283,7 +278,7 @@ static Token * new_token_identifyer(size_t charnum, char *value, size_t len) {
 }
 
 static Token * new_token_number(size_t charnum, char *value, size_t len) {
-	Token *tok = token_init();
+	Token *tok = token_alloc ();
 	if (!tok) return tok;
 	TOKEN_SETALLOCED(tok);
 	tok->length = len;
@@ -340,7 +335,7 @@ static char * alloc_string(cache *stream, int start, size_t *len) {
 }
 
 static Token * new_token_string(cache *stream, int start, size_t charnum) {
-	Token *tok = token_init();
+	Token *tok = token_alloc ();
 	if (!tok) return tok;
 	tok->value = alloc_string(stream, start, &tok->length);
 	if (!tok->value) {
@@ -397,7 +392,7 @@ static char * alloc_line_comment(cache *stream, size_t *len) {
 }
 
 static Token * new_token_line_comment(cache *stream, size_t charnum) {
-	Token *tok = token_init();
+	Token *tok = token_alloc ();
 	if (!tok) return tok;
 	tok->value = alloc_line_comment(stream, &tok->length);
 	if (!tok->value) {
@@ -511,7 +506,7 @@ static char * alloc_regex(cache *stream, size_t *len) {
 }
 
 static Token * new_regex(cache *stream, size_t charnum) {
-	Token *tok = token_init();
+	Token *tok = token_alloc ();
 	if (!tok) return tok;
 	tok->value = alloc_regex(stream, &tok->length);
 	if (!tok->value) {
@@ -526,7 +521,7 @@ static Token * new_regex(cache *stream, size_t charnum) {
 
 
 static Token * new_token_multi_line_comment(cache *stream, size_t charnum) {
-	Token *tok = token_init();
+	Token *tok = token_alloc ();
 	if (!tok) return tok;
 	tok->value = alloc_multi_line_comment(stream, &tok->length);
 	if (!tok->value) {
@@ -856,7 +851,7 @@ static void * gettokens(void *in) {
 }
 
 List *token_list_new(bool locked) {
-	return list_new(&token_destroy, locked);
+	return list_new(&token_free, locked);
 }
 
 List * tokenizer_start_thread(int fd) {
