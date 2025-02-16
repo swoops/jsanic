@@ -100,6 +100,7 @@ int cache_step_backcount(cache *c, size_t count){
 	return 0;
 }
 
+#if 0
 int cache_str_match(cache *c, char *str){
 	int ch, test;
 	size_t i;
@@ -119,3 +120,4 @@ int cache_str_match(cache *c, char *str){
 		return ERROR;
 	return 0;
 }
+#endif

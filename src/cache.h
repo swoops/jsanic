@@ -23,4 +23,3 @@ void cache_destroy(cache *c);
 int cache_getc(cache *c);
 int cache_step_backcount(cache *c, size_t count);
 int cache_step_back(cache *c);
-int cache_str_match();
