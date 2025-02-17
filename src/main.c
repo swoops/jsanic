@@ -65,10 +65,13 @@ int main(int argc, char *argv[]) {
 		return -1;
 	}
 
-	List *l = tokenizer_start_thread(fd); // token list
+	// l is a list of tokens
+	List *l = tokenizer_start_thread (fd); // token list
 	if (deobf) {
-		l = decoder_creat_start_thread(l); // token list (deobfuscated)
+		l = decoder_creat_start_thread (l); // token list (deobfuscated)
 	}
+
+	// l becomes a list of lines
 	l = lines_creat_start_thread (l); // makes basic lines
 	l = lines_beautify (l); // deeper beautification
 	printlines(l, stdout);

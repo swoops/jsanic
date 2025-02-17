@@ -252,6 +252,7 @@ List_status list_append(List *l, void *data) {
 	return status;
 }
 
+// we know how to free inserts, so we do it for caller on failure
 bool list_append_block(List *l, void *data) {
 	if (!data) {
 		return false;
