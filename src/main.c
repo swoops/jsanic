@@ -10,6 +10,7 @@
 #include "tokenizer.h"
 #include "decoders.h"
 #include "lines.h"
+#include "lines_beautify.h"
 #include "printlines.h"
 
 
@@ -68,7 +69,8 @@ int main(int argc, char *argv[]) {
 	if (deobf) {
 		l = decoder_creat_start_thread(l); // token list (deobfuscated)
 	}
-	l = lines_creat_start_thread(l); // line list
+	l = lines_creat_start_thread (l); // makes basic lines
+	l = lines_beautify (l); // deeper beautification
 	printlines(l, stdout);
 
 	close(fd);

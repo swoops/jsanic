@@ -629,6 +629,7 @@ static Token * scan_token(cache *stream, size_t prev_type) {
 
 		// 1 or more chars
 		case '?':
+			// TODO optional chaining
 			ch = cache_getc(stream);
 			if (ch == '?') {
 				tok = SIMPLE_TOKEN("??", TOKEN_NULL_COALESCING);
