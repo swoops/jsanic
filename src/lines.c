@@ -4,8 +4,26 @@
 #include "lines.h"
 #include "threads.h"
 
+static inline void set_line_has(Line *line, tokentype t) {
+	switch (t) {
+	case TOKEN_COMMA:
+		line->has_commas = true;
+		break;
+	case TOKEN_LOGICAL_OR:
+	case TOKEN_LOGICAL_AND:
+		line->has_bool_logic = true;
+		break;
+	case TOKEN_QUESTIONMARK:
+		line->has_terinary = true;
+		break;
+	default:
+		break;
+	}
+}
+
 #define line_append_or_ret(line, token) \
-	if (!(list_append_block(line->tokens, token))) {\
+	set_line_has (line, token->type); \
+	if (!list_append_block(line->tokens, token)) {\
 		return false; \
 	}
 
@@ -301,7 +319,7 @@ static inline bool fill_line(List *tokens, Line *line) {
 	return true;
 }
 
-static Line *line_new(size_t n, int indent) {
+static inline Line *line_new(size_t n, int indent) {
 	Line *l = (Line *) malloc(sizeof(Line));
 	if (l) {
 		if ((l->tokens = token_list_new(false))) {
@@ -310,8 +328,8 @@ static Line *line_new(size_t n, int indent) {
 			l->indent = indent;
 			return l;
 		}
+		line_destroy(l);
 	}
-	line_destroy(l);
 	return NULL;
 }
 
@@ -379,14 +397,18 @@ static void _line_destroy(void *l) {
 	line_destroy((Line *) l);
 }
 
+List *lines_new() {
+	return list_new (&_line_destroy, true);
+}
+
 List *lines_creat_start_thread(List *tokens) {
 	if (!tokens) {
 		return NULL;
 	}
 
-	List *lines = list_new(&_line_destroy, true);
+	List *lines = lines_new ();
 	if (!lines) {
-		list_destroy(tokens);
+		list_destroy (tokens);
 		return NULL;
 	}
 
@@ -402,9 +424,9 @@ List *lines_creat_start_thread(List *tokens) {
 
 	if (pthread_create(&lines->thread->tid, &lines->thread->attr, getlines, (void *) t) != 0) {
 		fprintf(stderr, "[!!] pthread_create failed\n");
-		list_destroy(tokens);
-		list_destroy(lines);
-		free(t);
+		list_destroy (tokens);
+		list_destroy (lines);
+		free (t);
 		return NULL;
 	}
 	return lines;

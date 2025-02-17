@@ -8,7 +8,12 @@ typedef struct {
 	LineType type;
 	size_t num;
 	int indent;
+	bool has_commas;
+	bool has_bool_logic;
+	bool has_terinary;
 } Line;
+
+List *lines_new();
 
 /*
  * consumer of tokens, producer of a line
