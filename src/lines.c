@@ -58,7 +58,15 @@ static tokentype line_peek_last_type(Line *line) {
 }
 
 static inline Token *token_space() {
-	return new_token_static (" ", TOKEN_SPACE, sizeof(" ")-1, 0);
+	static Token fake_space = {
+		.value = " ",
+		.length = 1,
+		.charnum = 0,
+		.type = TOKEN_SPACE,
+		.fake = true,
+		.isalloc = false,
+	};
+	return &fake_space;
 }
 
 static lineret append_until_paren_fin(List *tokens, Line *line) {

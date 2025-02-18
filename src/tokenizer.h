@@ -115,8 +115,9 @@ struct  token_data {
 	size_t charnum;
 	tokentype type;
 	unsigned int flags;
+	bool fake; // for space tokens created during beautification, fake tokens lack origin locations and are not allocated.
+	bool isalloc, ishead;
 };
-
 
 /*
  * kick off the token producer, tokens will be added to the returned locked
