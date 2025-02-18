@@ -7,18 +7,6 @@
 #include "tokenizer.h"
 #include "cache.h"
 
-// token flags and macros
-#define  LINKED   1  <<  0
-#define  HEAD     1  <<  1
-#define  ALLOCED  1  <<  2
-
-#define TOKEN_ISALLOCED(x)  (x->flags & ALLOCED)
-#define TOKEN_ISLINKED(x)     (x->flags & LINKED)
-#define TOKEN_SETLINKED(x)    x->flags |= LINKED
-#define TOKEN_UNSETLINKED(x)  x->flags &= ~LINKED
-#define TOKEN_ISHEAD(x)       (x->flags & HEAD)
-#define TOKEN_SETALLOCED(x)   x->flags |= ALLOCED
-
 static bool until_not_white(void *data, void *args) {
 	Token *token = (Token *) data;
 	if (!data) {
@@ -64,11 +52,9 @@ static inline Token *token_alloc() {
 
 static void token_free(void *v) {
 	Token *tok = (Token *) v;
-	if (tok) {
-		assert(!TOKEN_ISLINKED(tok));
-		assert(!TOKEN_ISHEAD(tok));
-		if (TOKEN_ISALLOCED(tok)) {
-			free((void *) tok->value);
+	if (tok && !tok->fake) {
+		if (tok->isalloc) {
+			free ((void *) tok->value);
 		}
 		free(tok);
 	}
@@ -202,7 +188,7 @@ static Token * new_token_error(int ch, size_t charnum) {
 	buf[0] = (char) ch;
 	buf[1] = '\x00';
 
-	TOKEN_SETALLOCED(tok);
+	tok->isalloc = true;
 	if ((tok->value = strdup(buf)) == NULL) {
 		free(tok);
 		return NULL;
@@ -269,7 +255,7 @@ static size_t get_identifyer_type(char *buf) {
 static Token * new_token_identifyer(size_t charnum, char *value, size_t len) {
 	Token *tok = token_alloc ();
 	if (!tok) return tok;
-	TOKEN_SETALLOCED(tok);
+	tok->isalloc = true;
 	tok->length = len;
 	tok->value = value;
 	tok->type = get_identifyer_type(value);
@@ -280,7 +266,7 @@ static Token * new_token_identifyer(size_t charnum, char *value, size_t len) {
 static Token * new_token_number(size_t charnum, char *value, size_t len) {
 	Token *tok = token_alloc ();
 	if (!tok) return tok;
-	TOKEN_SETALLOCED(tok);
+	tok->isalloc = true;
 	tok->length = len;
 	tok->value = value;
 	tok->charnum = charnum;
@@ -342,7 +328,7 @@ static Token * new_token_string(cache *stream, int start, size_t charnum) {
 		free(tok);
 		return NULL;
 	}
-	TOKEN_SETALLOCED(tok);
+	tok->isalloc = true;
 	tok->charnum = charnum;
 	switch (start) {
 		case '"':
@@ -399,7 +385,7 @@ static Token * new_token_line_comment(cache *stream, size_t charnum) {
 		free(tok);
 		return NULL;
 	}
-	TOKEN_SETALLOCED(tok);
+	tok->isalloc = true;
 	tok->charnum = charnum;
 	tok->type = TOKEN_LINE_COMMENT;
 	return tok;
@@ -513,7 +499,7 @@ static Token * new_regex(cache *stream, size_t charnum) {
 		free(tok);
 		return NULL;
 	}
-	TOKEN_SETALLOCED(tok);
+	tok->isalloc = true;
 	tok->charnum = charnum;
 	tok->type = TOKEN_REGEX;
 	return tok;
@@ -528,7 +514,7 @@ static Token * new_token_multi_line_comment(cache *stream, size_t charnum) {
 		free(tok);
 		return NULL;
 	}
-	TOKEN_SETALLOCED(tok);
+	tok->isalloc = true;
 	tok->charnum = charnum;
 	tok->type = TOKEN_MULTI_LINE_COMMENT;
 	return tok;
