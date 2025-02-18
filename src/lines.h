@@ -8,9 +8,8 @@ typedef struct {
 	LineType type;
 	size_t num;
 	int indent;
-	bool has_commas;
-	bool has_bool_logic;
-	bool has_terinary;
+
+	size_t cnt_logic, cnt_comma,  cnt_ternary;
 } Line;
 
 List *lines_new();
