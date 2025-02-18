@@ -14,14 +14,14 @@ typedef enum {
 static inline void set_line_has(Line *line, tokentype t) {
 	switch (t) {
 	case TOKEN_COMMA:
-		line->has_commas = true;
+		line->cnt_comma++;
 		break;
 	case TOKEN_LOGICAL_OR:
 	case TOKEN_LOGICAL_AND:
-		line->has_bool_logic = true;
+		line->cnt_logic++;
 		break;
 	case TOKEN_QUESTIONMARK:
-		line->has_terinary = true;
+		line->cnt_ternary++;
 		break;
 	default:
 		break;
@@ -127,15 +127,19 @@ static bool is_valid_op_serpator(tokentype t) {
 	}
 }
 
-static lineret maybe_space_surround(List *tokens, Line *line) {
+static bool maybe_space_surround(List *tokens, Line *line) {
 	if (is_valid_op_serpator (line_peek_last_type (line))) {
-		LINE_APPEND (line, token_space ());
+		if (!line_append (line, token_space ())) {
+			return false;
+		}
 	}
 	LINE_APPEND (line, token_list_dequeue (tokens));
 	if (is_valid_op_serpator( token_list_peek_type (tokens))) {
-		LINE_APPEND (line, token_space ());
+		if (!line_append (line, token_space ())) {
+			return false;
+		}
 	}
-	return LRET_CONTINUE;
+	return true;
 }
 
 static inline size_t line_length(Line *line) {
@@ -204,7 +208,10 @@ static lineret finish_line(List *tokens, Line *line) {
 		case TOKEN_GREATERTHAN_OR_EQUAL:
 		case TOKEN_EQUAL_EQUAL_EQUAL:
 		case TOKEN_NOT_EQUAL_EQUAL:
-			return maybe_space_surround (tokens, line);
+			if (!maybe_space_surround (tokens, line)) {
+				return LRET_HALT_ERR;
+			}
+			break;
 		case TOKEN_SPACE:
 			// prevent double spaces
 			token_list_consume_white_peek (tokens);
@@ -213,7 +220,7 @@ static lineret finish_line(List *tokens, Line *line) {
 		case TOKEN_NEWLINE:
 		case TOKEN_CARRAGE_RETURN:
 			// no need for newline or whitespace at end of lines
-			token_list_consume_white_peek(tokens);
+			token_list_consume_white_peek (tokens);
 			return LRET_END;
 		case TOKEN_OPEN_PAREN:
 			append_until_paren_fin(tokens, line);
@@ -260,7 +267,7 @@ static lineret make_logic_line(List *tokens, Line *line) {
 	// append logic token for,wihle,if, etc
 	Token *tok = token_list_dequeue (tokens);
 	if (!tok) {
-		return LRET_HALT;
+		return LRET_HALT_ERR;
 	}
 
 	LINE_APPEND (line, tok);
