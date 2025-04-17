@@ -32,7 +32,10 @@ static inline void set_line_has(Line *line, tokentype t) {
 static inline bool line_append(Line *line, Token *token) {
 	if (token) {
 		set_line_has (line, token->type); \
-		return list_append_block (line->tokens, token);
+		if (list_append_block (line->tokens, token)) {
+			line->char_len += token->length;
+			return true;
+		}
 	}
 	return false;
 }
@@ -69,6 +72,38 @@ static inline Token *token_space() {
 	return &fake_space;
 }
 
+static bool is_valid_op_serpator(tokentype t) {
+	switch (t) {
+	case TOKEN_MULTI_LINE_COMMENT:
+	case TOKEN_CLOSE_PAREN:
+	case TOKEN_CLOSE_CURLY:
+	case TOKEN_CLOSE_BRACE:
+	case TOKEN_DOUBLE_QUOTE_STRING:
+	case TOKEN_SINGLE_QUOTE_STRING:
+	case TOKEN_TILDA_STRING:
+	case TOKEN_NUMERIC:
+	case TOKEN_VARIABLE:
+		return true;
+	default:
+		return false;
+	}
+}
+
+static inline bool maybe_space_surround(List *tokens, Line *line) {
+	if (is_valid_op_serpator (line_peek_last_type (line))) {
+		if (!line_append (line, token_space ())) {
+			return false;
+		}
+	}
+	LINE_APPEND (line, token_list_dequeue (tokens));
+	if (is_valid_op_serpator( token_list_peek_type (tokens))) {
+		if (!line_append (line, token_space ())) {
+			return false;
+		}
+	}
+	return true;
+}
+
 static lineret append_until_paren_fin(List *tokens, Line *line) {
 	Token *tok = token_list_dequeue(tokens);
 
@@ -84,6 +119,47 @@ static lineret append_until_paren_fin(List *tokens, Line *line) {
 	size_t depth = 1; // appended the first open paren already
 	while ((tok = token_list_dequeue(tokens)) != NULL) {
 		switch (tok->type) {
+		case TOKEN_QUESTIONMARK:
+		case TOKEN_ADD:
+		case TOKEN_SUBTRACT:
+		case TOKEN_MULTIPLY:
+		case TOKEN_DIVIDE:
+		case TOKEN_EXPONENT:
+		case TOKEN_LOGICAL_OR:
+		case TOKEN_LOGICAL_AND:
+		case TOKEN_NULL_COALESCING:
+		case TOKEN_BITWISE_AND:
+		case TOKEN_BITWISE_XOR:
+		case TOKEN_BITWISE_OR:
+		case TOKEN_BITSHIFT_LEFT:
+		case TOKEN_ZERO_FILL_RIGHT_SHIFT:
+		case TOKEN_SIGNED_BITSHIFT_RIGHT:
+		case TOKEN_MOD:
+		case TOKEN_BITWISE_XOR_ASSIGN:
+		case TOKEN_MULTIPLY_ASSIGN:
+		case TOKEN_DIVIDE_ASSIGN:
+		case TOKEN_BITWISE_OR_ASSIGN:
+		case TOKEN_BITWISE_AND_ASSIGN:
+		case TOKEN_BITSHIFT_LEFT_ASSIGN:
+		case TOKEN_BITSHIFT_RIGHT_ASSIGN:
+		case TOKEN_MINUS_ASSIGN:
+		case TOKEN_MOD_ASSIGN:
+		case TOKEN_ASSIGN:
+		case TOKEN_ARROW_FUNC:
+		case TOKEN_EQUAL_EQUAL:
+		case TOKEN_NOT_EQUAL:
+		case TOKEN_PLUS_EQUAL:
+		case TOKEN_DECREMENT:
+		case TOKEN_LESSTHAN_OR_EQUAL:
+		case TOKEN_LESSTHAN:
+		case TOKEN_GREATER_THAN:
+		case TOKEN_GREATERTHAN_OR_EQUAL:
+		case TOKEN_EQUAL_EQUAL_EQUAL:
+		case TOKEN_NOT_EQUAL_EQUAL:
+			if (!maybe_space_surround (tokens, line)) {
+				return LRET_HALT_ERR;
+			}
+			break;
 		case TOKEN_CARRAGE_RETURN:
 			// remove
 			tokens->free(tok);
@@ -118,38 +194,6 @@ static lineret append_until_paren_fin(List *tokens, Line *line) {
 		}
 	}
 	return LRET_CONTINUE;
-}
-
-static bool is_valid_op_serpator(tokentype t) {
-	switch (t) {
-	case TOKEN_MULTI_LINE_COMMENT:
-	case TOKEN_CLOSE_PAREN:
-	case TOKEN_CLOSE_CURLY:
-	case TOKEN_CLOSE_BRACE:
-	case TOKEN_DOUBLE_QUOTE_STRING:
-	case TOKEN_SINGLE_QUOTE_STRING:
-	case TOKEN_TILDA_STRING:
-	case TOKEN_NUMERIC:
-	case TOKEN_VARIABLE:
-		return true;
-	default:
-		return false;
-	}
-}
-
-static bool maybe_space_surround(List *tokens, Line *line) {
-	if (is_valid_op_serpator (line_peek_last_type (line))) {
-		if (!line_append (line, token_space ())) {
-			return false;
-		}
-	}
-	LINE_APPEND (line, token_list_dequeue (tokens));
-	if (is_valid_op_serpator( token_list_peek_type (tokens))) {
-		if (!line_append (line, token_space ())) {
-			return false;
-		}
-	}
-	return true;
 }
 
 static inline size_t line_length(Line *line) {
