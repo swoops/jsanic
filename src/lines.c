@@ -106,6 +106,8 @@ static lineret append_until_paren_fin(List *tokens, Line *line) {
 			depth--;
 			break;
 		case TOKEN_EOF:
+			tokens->free (tok);
+			return LRET_END;
 		case TOKEN_NEWLINE:
 			// TODO delete newline?
 			LINE_APPEND  (line, tok);
@@ -248,6 +250,8 @@ static lineret finish_line(List *tokens, Line *line) {
 			LINE_APPEND (line, token_list_dequeue(tokens));
 			break;
 		case TOKEN_EOF:
+			tokens->free (token_list_dequeue (tokens));
+			return LRET_END;
 		case TOKEN_COMMA:
 		case TOKEN_SEMICOLON:
 			LINE_APPEND (line, token_list_dequeue(tokens));
