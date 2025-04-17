@@ -234,8 +234,7 @@ static lineret finish_line(List *tokens, Line *line) {
 			append_until_paren_fin(tokens, line);
 			break;
 		case TOKEN_CLOSE_CURLY:
-			curly_end(tokens, line);
-			break;
+			return curly_end(tokens, line);
 		case TOKEN_OPEN_CURLY:
 			if (line_peek_last_type(line) == TOKEN_CLOSE_PAREN) {
 				LINE_APPEND (line, token_space ());
@@ -252,7 +251,7 @@ static lineret finish_line(List *tokens, Line *line) {
 			break;
 		}
 	}
-	return LRET_CONTINUE;
+	return LRET_END;
 }
 
 static lineret make_else_line(List *tokens, Line *line) {
