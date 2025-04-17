@@ -176,6 +176,7 @@ static lineret curly_end(List *tokens, Line *line) {
 }
 
 static lineret finish_line(List *tokens, Line *line) {
+	lineret ret;
 	tokentype t;
 	while ((t = token_list_peek_type (tokens)) != TOKEN_ERROR) {
 		switch (t) {
@@ -221,8 +222,9 @@ static lineret finish_line(List *tokens, Line *line) {
 			}
 			break;
 		case TOKEN_SPACE:
-			// prevent double spaces
+			// clear all spaces, preventing double spaces
 			token_list_consume_white_peek (tokens);
+			// put single space in
 			LINE_APPEND (line, token_space ());
 			break;
 		case TOKEN_NEWLINE:
@@ -234,7 +236,11 @@ static lineret finish_line(List *tokens, Line *line) {
 			append_until_paren_fin(tokens, line);
 			break;
 		case TOKEN_CLOSE_CURLY:
-			return curly_end(tokens, line);
+			ret = curly_end (tokens, line);
+			if (ret != LRET_CONTINUE) {
+				return ret;
+			}
+			break;
 		case TOKEN_OPEN_CURLY:
 			if (line_peek_last_type(line) == TOKEN_CLOSE_PAREN) {
 				LINE_APPEND (line, token_space ());
@@ -293,7 +299,7 @@ static lineret make_logic_line(List *tokens, Line *line) {
 	tokentype t = token_list_consume_white_peek(tokens);
 
 	if (t == TOKEN_STOP) {
-		return LRET_END;
+		return LRET_HALT;
 	} else if (t != TOKEN_OPEN_PAREN) {
 		line->type = LINE_INVALID;
 		return finish_line (tokens, line);
@@ -309,7 +315,7 @@ static lineret make_logic_line(List *tokens, Line *line) {
 	// remove whitespace
 	t = token_list_consume_white_peek(tokens);
 	if (t == TOKEN_STOP) {
-		return false;
+		return LRET_HALT;
 	} else if (t == TOKEN_OPEN_CURLY) {
 		// append curly and end line
 		LINE_APPEND (line, token_space ());
@@ -322,27 +328,25 @@ static lineret make_logic_line(List *tokens, Line *line) {
 	return true;
 }
 
-static inline bool fill_line(List *tokens, Line *line) {
-	tokentype t = token_list_consume_white_peek(tokens);
+static inline lineret fill_line(List *tokens, Line *line, tokentype t) {
 	switch (t) {
 	case TOKEN_STOP:
-		return false;
+		return LRET_HALT;
 	case TOKEN_FOR:
 		line->type = LINE_FOR;
-		make_logic_line(tokens, line);
+		return make_logic_line (tokens, line);
 	case TOKEN_IF:
 		line->type = LINE_IF;
-		return make_logic_line(tokens, line);
+		return make_logic_line (tokens, line);
 	case TOKEN_WHILE:
 		line->type = LINE_WHILE;
-		return make_logic_line(tokens, line);
+		return make_logic_line (tokens, line);
 	case TOKEN_ELSE:
 		line->type = LINE_ELSE;
-		make_else_line(tokens, line);
+		return make_else_line (tokens, line);
 	default:
-		return finish_line(tokens, line);
+		return finish_line (tokens, line);
 	}
-	return LRET_END;
 }
 
 static inline Line *line_new(size_t n, int indent) {
@@ -363,30 +367,31 @@ static inline void make_lines(List *tokens, List *lines) {
 	size_t n = 0;
 	int indent = 0;
 	do {
+		tokentype t = token_list_consume_white_peek (tokens);
+		if (t == TOKEN_STOP) {
+			break;
+		}
 		Line *line = line_new (n++, indent);
 		if (!line) {
 			fprintf (stderr, "[!!] Failed to alloc\n");
 			return;
 		}
 
-		lineret ret = fill_line (tokens, line);
-		if (!line_length (line)) {
-			fprintf (stderr, "[!!] Empty line %ld?\n", line->num);
-			line_destroy (line);
-		} else if (!list_append_block (lines, line)) {
+		lineret ret = fill_line (tokens, line, t);
+		if (!list_append_block (lines, line)) {
 			return;
 		}
 
 		switch (ret) {
 		// STOP thread!
 		case LRET_HALT_ERR:
-			fprintf (stderr, "[!!] Line creation failed, output is incomplete!\n");
+			fprintf (stderr, "[!!] Got halt??? Developer mistake %s:%d\n", __FUNCTION__, __LINE__);
 		case LRET_HALT:
 			return;
 
 		// Keep making lines
 		case LRET_CONTINUE:
-			fprintf (stderr, "[!!] Unexpected continue in line ret\n");
+			fprintf (stderr, "[!!] Developer mistake %s:%d\n", __FUNCTION__, __LINE__);
 			// fallthrough
 		default:
 			break;
