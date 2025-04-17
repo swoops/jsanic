@@ -8,6 +8,7 @@ typedef struct {
 	LineType type;
 	size_t num;
 	int indent;
+	size_t char_len;
 
 	size_t cnt_logic, cnt_comma,  cnt_ternary;
 } Line;
