@@ -53,7 +53,7 @@ static void line_destroy(Line *l) {
 }
 
 static tokentype line_peek_last_type(Line *line) {
-	Token *tok = (Token *) list_peek_tail(line->tokens);
+	Token *tok = (Token *) list_peek_tail (line->tokens);
 	if (!tok) {
 		return TOKEN_NONE;
 	}
@@ -200,14 +200,14 @@ static inline size_t line_length(Line *line) {
 	return list_length(line->tokens);
 }
 
-static lineret curly_end(List *tokens, Line *line) {
+static inline lineret curly_end(List *tokens, Line *line) {
 	if (line_length (line)) {
 		token_list_snip_white_tail(line->tokens);
 		return LRET_END; // newline before CURLY CLOSE
 	}
 
-	LINE_APPEND (line, token_list_dequeue(tokens));
-	tokentype t = token_list_consume_white_peek(tokens);
+	LINE_APPEND (line, token_list_dequeue (tokens));
+	tokentype t = token_list_consume_white_peek (tokens);
 	switch (t) {
 	case TOKEN_COMMA:
 		LINE_APPEND (line, token_list_dequeue(tokens));
@@ -219,6 +219,25 @@ static lineret curly_end(List *tokens, Line *line) {
 	default:
 		return LRET_CONTINUE;
 	}
+}
+
+static inline lineret curly_open(List *tokens, Line *line) {
+	// `if (){ /* <- this one */}`
+	if (line_peek_last_type (line) == TOKEN_CLOSE_PAREN) {
+		LINE_APPEND (line, token_space ());
+		LINE_APPEND (line, token_list_dequeue(tokens));
+		return LRET_END;
+	}
+
+	LINE_APPEND (line, token_list_dequeue(tokens));
+
+	// a = {}; case
+	if (token_list_consume_white_peek (tokens) == TOKEN_CLOSE_CURLY) {
+		LINE_APPEND (line, token_list_dequeue(tokens));
+		token_list_consume_white_peek (tokens);
+		return LRET_CONTINUE;
+	}
+	return LRET_END;
 }
 
 static lineret finish_line(List *tokens, Line *line) {
@@ -279,7 +298,7 @@ static lineret finish_line(List *tokens, Line *line) {
 			token_list_consume_white_peek (tokens);
 			return LRET_END;
 		case TOKEN_OPEN_PAREN:
-			append_until_paren_fin(tokens, line);
+			append_until_paren_fin (tokens, line);
 			break;
 		case TOKEN_CLOSE_CURLY:
 			ret = curly_end (tokens, line);
@@ -288,10 +307,10 @@ static lineret finish_line(List *tokens, Line *line) {
 			}
 			break;
 		case TOKEN_OPEN_CURLY:
-			if (line_peek_last_type(line) == TOKEN_CLOSE_PAREN) {
-				LINE_APPEND (line, token_space ());
+			ret = curly_open (tokens, line);
+			if (ret != LRET_CONTINUE) {
+				return ret;
 			}
-			LINE_APPEND (line, token_list_dequeue(tokens));
 			break;
 		case TOKEN_EOF:
 			tokens->free (token_list_dequeue (tokens));
@@ -299,7 +318,7 @@ static lineret finish_line(List *tokens, Line *line) {
 		case TOKEN_COMMA:
 		case TOKEN_SEMICOLON:
 			LINE_APPEND (line, token_list_dequeue(tokens));
-			break;
+			return LRET_END;
 		default:
 			LINE_APPEND (line, token_list_dequeue(tokens));
 			break;
