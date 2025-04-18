@@ -8,9 +8,26 @@ static inline Line *get_line(List *tl) {
 	return (Line *) list_dequeue_block(tl);
 }
 
+static bool line_simple(Line *line) {
+	if (line->char_len > 160) {
+		return false;
+	}
+	if (line->cnt_comma + line->cnt_logic + line->cnt_ternary > 3) {
+		return false;
+	}
+	return true;
+}
+
+static inline bool deep_beauty(Line *line) {
+	return true;
+}
+
 static inline bool beautify_lines(List *inlines, List *outlines) {
 	Line *line = NULL;
 	while ((line = get_line (inlines))) {
+		if (!line_simple (line)) {
+			deep_beauty (line);
+		}
 		if (!list_append_block (outlines, line)) {
 			return false;
 		}
