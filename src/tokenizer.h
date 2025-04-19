@@ -1,6 +1,9 @@
 #include <pthread.h>
 #include "list.h"
 
+#ifndef _TOKENGUARD
+#define _TOKENGUARD 1
+
 typedef enum {
 	// special, fake, tokens
 	TOKEN_NONE = 0,
@@ -154,3 +157,5 @@ Token * new_token_static(char *value, size_t type, size_t length, size_t charnum
 tokentype token_list_peek_type(List *tl);
 
 List *token_list_new(bool locked);
+
+#endif

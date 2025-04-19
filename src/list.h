@@ -26,7 +26,7 @@ typedef struct {
 	Threadinfo *thread;
 } List;
 
-// List_status flags
+// List_status flags, XXX fix this
 #define LIST_EMPTY          1 << 0
 #define LIST_FULL           1 << 1
 #define LIST_HALT_CONSUMER  1 << 2

@@ -1,14 +1,22 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "tokenizer.h"
-#include "lines.h"
+#include "line_utils.h"
 #include "threads.h"
 
 static inline Line *get_line(List *tl) {
 	return (Line *) list_dequeue_block(tl);
 }
 
+// quick parse to see if we want to do more to the line
 static bool line_simple(Line *line) {
+	switch (line->type) {
+	case LINE_FOR:
+	case LINE_WHILE:
+		return false;
+	default:
+		break;
+	}
 	if (line->char_len > 160) {
 		return false;
 	}
@@ -18,17 +26,19 @@ static bool line_simple(Line *line) {
 	return true;
 }
 
-static inline bool deep_beauty(Line *line) {
-	return true;
+// nothing fancy for now
+static inline bool deep_beauty(Line *line, List *outlines) {
+	return list_append_block (outlines, line);
 }
 
 static inline bool beautify_lines(List *inlines, List *outlines) {
 	Line *line = NULL;
 	while ((line = get_line (inlines))) {
 		if (!line_simple (line)) {
-			deep_beauty (line);
-		}
-		if (!list_append_block (outlines, line)) {
+			if (!deep_beauty (line, outlines)) {
+				return false;
+			}
+		} else if (!list_append_block (outlines, line)){
 			return false;
 		}
 	}
