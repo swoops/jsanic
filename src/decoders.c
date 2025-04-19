@@ -63,16 +63,16 @@ static char * decode_b64(const char *b64, size_t b64_len, size_t *bufsize) {
 	for (i=0; i<b64_len; i++){
 		tmp_hldr <<= 6;
 		if (b64[i] >= 'A' && b64[i] <= 'Z') {
-			tmp_hldr |= b64[i] - 0x41;	
+			tmp_hldr |= b64[i] - 0x41;
 		} else if (b64[i] >= 'a' && b64[i] <= 'z') {
 			tmp_hldr |= b64[i] - 0x47; // 0x41 + 0x6 because 6 chars between z and A
 		} else if ( b64[i] >= '0' && b64[i] <= '9') {
-			tmp_hldr |= b64[i] + 0x04; // ascii('0') = 0x30 and base64('0') = 0x34, so to speak 
+			tmp_hldr |= b64[i] + 0x04; // ascii('0') = 0x30 and base64('0') = 0x34, so to speak
 		} else if (b64[i] == '+') {
 			tmp_hldr |= 0x3e;
 		} else if (b64[i] == '/') {
 			tmp_hldr |= 0x3f;
-		} else{ 
+		} else {
 			free(buf);
 			return NULL;
 		}
@@ -87,7 +87,7 @@ static char * decode_b64(const char *b64, size_t b64_len, size_t *bufsize) {
 			}
 		}
 	}
-	buf[*bufsize] = '\0'; 
+	buf[*bufsize] = '\0';
 	return buf;
 }
 

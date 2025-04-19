@@ -2,8 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include "tokenizer.h"
-#include "lines.h"
+#include "line_utils.h"
 #include "printlines.h"
 
 static bool put_token(Token *tok, FILE *fp) {

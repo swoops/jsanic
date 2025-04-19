@@ -3,10 +3,13 @@
 #include "tokenizer.h"
 #include "lines.h"
 #include "threads.h"
+#include "line_utils.h"
 
 typedef enum {
 	LRET_HALT_ERR,
 	LRET_HALT,
+	LRET_END_INC_INDENT,
+	LRET_END_DEC_INDENT,
 	LRET_END,
 	LRET_CONTINUE,
 } lineret;
@@ -52,14 +55,6 @@ static void line_destroy(Line *l) {
 	}
 }
 
-static tokentype line_peek_last_type(Line *line) {
-	Token *tok = (Token *) list_peek_tail (line->tokens);
-	if (!tok) {
-		return TOKEN_NONE;
-	}
-	return tok->type;
-}
-
 static inline Token *token_space() {
 	static Token fake_space = {
 		.value = " ",
@@ -72,7 +67,7 @@ static inline Token *token_space() {
 	return &fake_space;
 }
 
-static bool is_valid_op_serpator(tokentype t) {
+static inline bool is_valid_op_serpator(tokentype t) {
 	switch (t) {
 	case TOKEN_MULTI_LINE_COMMENT:
 	case TOKEN_CLOSE_PAREN:
@@ -83,6 +78,7 @@ static bool is_valid_op_serpator(tokentype t) {
 	case TOKEN_TILDA_STRING:
 	case TOKEN_NUMERIC:
 	case TOKEN_VARIABLE:
+	case TOKEN_NONE:
 		return true;
 	default:
 		return false;
@@ -203,7 +199,7 @@ static inline size_t line_length(Line *line) {
 static inline lineret curly_end(List *tokens, Line *line) {
 	if (line_length (line)) {
 		token_list_snip_white_tail(line->tokens);
-		return LRET_END; // newline before CURLY CLOSE
+		return LRET_END_DEC_INDENT; // newline before CURLY CLOSE
 	}
 
 	LINE_APPEND (line, token_list_dequeue (tokens));
@@ -226,7 +222,7 @@ static inline lineret curly_open(List *tokens, Line *line) {
 	if (line_peek_last_type (line) == TOKEN_CLOSE_PAREN) {
 		LINE_APPEND (line, token_space ());
 		LINE_APPEND (line, token_list_dequeue(tokens));
-		return LRET_END;
+		return LRET_END_INC_INDENT;
 	}
 
 	LINE_APPEND (line, token_list_dequeue(tokens));
@@ -237,7 +233,7 @@ static inline lineret curly_open(List *tokens, Line *line) {
 		token_list_consume_white_peek (tokens);
 		return LRET_CONTINUE;
 	}
-	return LRET_END;
+	return LRET_END_INC_INDENT;
 }
 
 static lineret finish_line(List *tokens, Line *line) {
@@ -374,25 +370,26 @@ static lineret make_logic_line(List *tokens, Line *line) {
 	LINE_APPEND (line, token_space ());
 
 	// get paren and everything in it
-	if (!append_until_paren_fin(tokens, line)) {
+	lineret ret = append_until_paren_fin (tokens, line);
+	if (ret != LRET_END) {
 		line->type = LINE_NONE;
-		return false;
+		return ret;
 	}
 
 	// remove whitespace
-	t = token_list_consume_white_peek(tokens);
+	t = token_list_consume_white_peek (tokens);
 	if (t == TOKEN_STOP) {
 		return LRET_HALT;
 	} else if (t == TOKEN_OPEN_CURLY) {
 		// append curly and end line
 		LINE_APPEND (line, token_space ());
-		if (!(tok = token_list_dequeue(tokens))) {
-			return false;
-		}
-		LINE_APPEND (line, tok);
+		LINE_APPEND (line, token_list_dequeue(tokens));
+		return LRET_END_INC_INDENT;
+	} else {
+		// `for (..) something_no_cury`
+		// handle indent in next stage?
+		return LRET_END;
 	}
-
-	return true;
 }
 
 static inline lineret fill_line(List *tokens, Line *line, tokentype t) {
@@ -453,6 +450,12 @@ static inline void make_lines(List *tokens, List *lines) {
 		// STOP thread!
 		case LRET_HALT_ERR:
 			fprintf (stderr, "[!!] Got halt??? Developer mistake %s:%d\n", __FUNCTION__, __LINE__);
+		case LRET_END_INC_INDENT:
+			indent++;
+			break;
+		case LRET_END_DEC_INDENT:
+			indent--;
+			break;
 		case LRET_HALT:
 			return;
 
