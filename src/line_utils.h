@@ -19,5 +19,8 @@ typedef struct {
 	size_t cnt_logic, cnt_comma,  cnt_ternary;
 } Line;
 
+#define line_dec_indent(line) (line->indent && line->indent--)
+#define line_inc_indent(line) (line->indent++)
+
 tokentype line_peek_last_type(Line *line);
 bool line_ends_with_type(Line *line);

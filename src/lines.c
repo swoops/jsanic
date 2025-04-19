@@ -197,23 +197,34 @@ static inline size_t line_length(Line *line) {
 }
 
 static inline lineret curly_end(List *tokens, Line *line) {
+	// all on one line
 	if (line_length (line)) {
-		token_list_snip_white_tail(line->tokens);
+		token_list_snip_white_tail (line->tokens);
 		return LRET_END_DEC_INDENT; // newline before CURLY CLOSE
 	}
+
+	// curly starts line
+	line_dec_indent (line);
 
 	LINE_APPEND (line, token_list_dequeue (tokens));
 	tokentype t = token_list_consume_white_peek (tokens);
 	switch (t) {
 	case TOKEN_COMMA:
 		LINE_APPEND (line, token_list_dequeue(tokens));
+		if (token_list_consume_white_peek (tokens) == TOKEN_CLOSE_CURLY) {
+			LINE_APPEND (line, token_list_dequeue(tokens));
+			return LRET_END;
+		}
 		return LRET_CONTINUE;
 	case TOKEN_ELSE:
 	case TOKEN_WHILE:
 		LINE_APPEND (line, token_space ());
 		return LRET_CONTINUE;
+	case TOKEN_SEMICOLON:
+		LINE_APPEND (line, token_list_dequeue(tokens));
+		return LRET_END_DEC_INDENT;
 	default:
-		return LRET_CONTINUE;
+		return LRET_END_DEC_INDENT;
 	}
 }
 
@@ -454,7 +465,9 @@ static inline void make_lines(List *tokens, List *lines) {
 			indent++;
 			break;
 		case LRET_END_DEC_INDENT:
-			indent--;
+			if (indent) {
+				indent--;
+			}
 			break;
 		case LRET_HALT:
 			return;
