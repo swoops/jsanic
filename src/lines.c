@@ -49,12 +49,6 @@ static inline bool line_append(Line *line, Token *token) {
 	} \
 }
 
-static void line_destroy(Line *l) {
-	if (l) {
-		list_destroy(l->tokens);
-	}
-}
-
 static inline Token *token_space() {
 	static Token fake_space = {
 		.value = " ",
@@ -424,20 +418,6 @@ static inline lineret fill_line(List *tokens, Line *line, tokentype t) {
 	}
 }
 
-static inline Line *line_new(size_t n, int indent) {
-	Line *l = (Line *) malloc(sizeof(Line));
-	if (l) {
-		if ((l->tokens = token_list_new(false))) {
-			l->type = LINE_NONE;
-			l->num = n;
-			l->indent = indent;
-			return l;
-		}
-		line_destroy(l);
-	}
-	return NULL;
-}
-
 static inline void make_lines(List *tokens, List *lines) {
 	size_t n = 0;
 	int indent = 0;
@@ -493,12 +473,8 @@ static void *getlines(void *in) {
 	return NULL;
 }
 
-static void _line_destroy(void *l) {
-	line_destroy((Line *) l);
-}
-
 List *lines_new() {
-	return list_new (&_line_destroy, true);
+	return list_new ((void (*)(void *))&line_free, true);
 }
 
 List *lines_creat_start_thread(List *tokens) {
