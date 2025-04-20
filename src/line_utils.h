@@ -23,4 +23,6 @@ typedef struct {
 #define line_inc_indent(line) (line->indent++)
 
 tokentype line_peek_last_type(Line *line);
+void line_free(Line *l);
+Line *line_new(size_t n, int indent);
 bool line_ends_with_type(Line *line);
