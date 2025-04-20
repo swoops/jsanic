@@ -20,17 +20,12 @@ typedef enum {
 	} \
 }
 
-static inline Token *token_space() {
-	static Token fake_space = {
-		.value = " ",
-		.length = 1,
-		.charnum = 0,
-		.type = TOKEN_SPACE,
-		.fake = true,
-		.isalloc = false,
-	};
-	return &fake_space;
+#define LINE_APPEND_SPACE(line) { \
+	if (!line_append_space (line)) { \
+		return LRET_HALT_ERR; \
+	} \
 }
+
 
 static inline bool is_valid_op_serpator(tokentype t) {
 	switch (t) {
@@ -52,13 +47,13 @@ static inline bool is_valid_op_serpator(tokentype t) {
 
 static inline bool maybe_space_surround(List *tokens, Line *line) {
 	if (is_valid_op_serpator (line_peek_last_type (line))) {
-		if (!line_append (line, token_space ())) {
+		if (!line_append_space (line)) {
 			return false;
 		}
 	}
 	LINE_APPEND (line, token_list_dequeue (tokens));
 	if (is_valid_op_serpator(token_list_peek_type (tokens))) {
-		if (!line_append (line, token_space ())) {
+		if (!line_append_space (line)) {
 			return false;
 		}
 	}
@@ -129,7 +124,7 @@ static lineret append_until_paren_fin(List *tokens, Line *line) {
 		case TOKEN_COMMA:
 			LINE_APPEND (line, tok)
 			token_list_consume_white_peek(tokens);
-			LINE_APPEND (line, token_space ());
+			LINE_APPEND_SPACE (line);
 			break;
 		case TOKEN_OPEN_PAREN:
 			LINE_APPEND (line, tok);
@@ -183,7 +178,7 @@ static inline lineret curly_end(List *tokens, Line *line) {
 		return LRET_CONTINUE;
 	case TOKEN_ELSE:
 	case TOKEN_WHILE:
-		LINE_APPEND (line, token_space ());
+		LINE_APPEND_SPACE (line);
 		return LRET_CONTINUE;
 	case TOKEN_SEMICOLON:
 		LINE_APPEND (line, token_list_dequeue(tokens));
@@ -196,7 +191,7 @@ static inline lineret curly_end(List *tokens, Line *line) {
 static inline lineret curly_open(List *tokens, Line *line) {
 	// `if (){ /* <- this one */}`
 	if (line_peek_last_type (line) == TOKEN_CLOSE_PAREN) {
-		LINE_APPEND (line, token_space ());
+		LINE_APPEND_SPACE (line);
 		LINE_APPEND (line, token_list_dequeue(tokens));
 		return LRET_END_INC_INDENT;
 	}
@@ -262,7 +257,7 @@ static lineret finish_line(List *tokens, Line *line) {
 			// clear all spaces, preventing double spaces
 			token_list_consume_white_peek (tokens);
 			// put single space in
-			LINE_APPEND (line, token_space ());
+			LINE_APPEND_SPACE (line);
 			break;
 		case TOKEN_NEWLINE:
 		case TOKEN_CARRAGE_RETURN:
@@ -309,7 +304,7 @@ static lineret make_else_line(List *tokens, Line *line) {
 	// eat whitespace
 	tokentype t = token_list_consume_white_peek(tokens);
 	if (t == TOKEN_OPEN_CURLY) {
-		LINE_APPEND (line, token_space ());
+		LINE_APPEND_SPACE (line);
 		LINE_APPEND (line, token_list_dequeue(tokens));
 	}
 	return true;
@@ -343,7 +338,7 @@ static lineret make_logic_line(List *tokens, Line *line) {
 		line->type = LINE_INVALID;
 		return finish_line (tokens, line);
 	}
-	LINE_APPEND (line, token_space ());
+	LINE_APPEND_SPACE (line);
 
 	// get paren and everything in it
 	lineret ret = append_until_paren_fin (tokens, line);
@@ -358,7 +353,7 @@ static lineret make_logic_line(List *tokens, Line *line) {
 		return LRET_HALT;
 	} else if (t == TOKEN_OPEN_CURLY) {
 		// append curly and end line
-		LINE_APPEND (line, token_space ());
+		LINE_APPEND_SPACE (line);
 		LINE_APPEND (line, token_list_dequeue(tokens));
 		return LRET_END_INC_INDENT;
 	} else {
