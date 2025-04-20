@@ -14,35 +14,6 @@ typedef enum {
 	LRET_CONTINUE,
 } lineret;
 
-static inline void set_line_has(Line *line, tokentype t) {
-	switch (t) {
-	case TOKEN_COMMA:
-		line->cnt_comma++;
-		break;
-	case TOKEN_LOGICAL_OR:
-	case TOKEN_LOGICAL_AND:
-		line->cnt_logic++;
-		break;
-	case TOKEN_QUESTIONMARK:
-		line->cnt_ternary++;
-		break;
-	default:
-		break;
-	}
-}
-
-// return false means you should halt
-static inline bool line_append(Line *line, Token *token) {
-	if (token) {
-		set_line_has (line, token->type); \
-		if (list_append_block (line->tokens, token)) {
-			line->char_len += token->length;
-			return true;
-		}
-	}
-	return false;
-}
-
 #define LINE_APPEND(line, token) { \
 	if (!line_append (line, token)) { \
 		return LRET_HALT_ERR; \
@@ -86,7 +57,7 @@ static inline bool maybe_space_surround(List *tokens, Line *line) {
 		}
 	}
 	LINE_APPEND (line, token_list_dequeue (tokens));
-	if (is_valid_op_serpator( token_list_peek_type (tokens))) {
+	if (is_valid_op_serpator(token_list_peek_type (tokens))) {
 		if (!line_append (line, token_space ())) {
 			return false;
 		}
