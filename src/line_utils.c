@@ -26,6 +26,18 @@ static inline void update_line_stats(Line *line, Token *tok, bool added) {
 	}
 }
 
+static inline Token *token_space() {
+	static Token fake_space = {
+		.value = " ",
+		.length = 1,
+		.charnum = 0,
+		.type = TOKEN_SPACE,
+		.fake = true,
+		.isalloc = false,
+	};
+	return &fake_space;
+}
+
 // return false means you should halt
 bool line_append(Line *line, Token *token) {
 	if (token) {
@@ -35,6 +47,11 @@ bool line_append(Line *line, Token *token) {
 		}
 	}
 	return false;
+}
+
+
+bool line_append_space(Line *line) {
+	return line_append (line, token_space);
 }
 
 void line_free(Line *l) {
