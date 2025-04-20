@@ -325,7 +325,7 @@ static lineret make_logic_line(List *tokens, Line *line) {
 	case TOKEN_WHILE:
 		break;
 	default:
-		fprintf (stderr, "[!!] This is not a control flow token\n");
+		fprintf (stderr, "[!!] Dev mistake: This is not a control flow token %s:%d\n", __FUNCTION__, __LINE__);
 		return LRET_CONTINUE;
 	}
 

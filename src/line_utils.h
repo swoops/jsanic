@@ -23,6 +23,7 @@ typedef struct {
 #define line_inc_indent(line) (line->indent++)
 
 bool line_append(Line *line, Token *token);
+tokentype line_switch(Line *in, Line *out);
 bool line_append_space(Line *line);
 tokentype line_peek_last_type(Line *line);
 void line_free(Line *l);
