@@ -26,6 +26,14 @@ static inline void update_line_stats(Line *line, Token *tok, bool added) {
 	}
 }
 
+static inline Token *line_dequeue_token(Line *line) {
+	Token *tok = (Token *)list_dequeue_block (line->tokens);
+	if (tok) {
+		update_line_stats (line, tok, false);
+	}
+	return tok;
+}
+
 static inline Token *token_space() {
 	static Token fake_space = {
 		.value = " ",
@@ -38,6 +46,7 @@ static inline Token *token_space() {
 	return &fake_space;
 }
 
+
 // return false means you should halt
 bool line_append(Line *line, Token *token) {
 	if (token) {
@@ -49,10 +58,25 @@ bool line_append(Line *line, Token *token) {
 	return false;
 }
 
-
 bool line_append_space(Line *line) {
-	return line_append (line, token_space);
+	return line_append (line, token_space ());
 }
+
+// switch token from line in to line out, returns token type
+tokentype line_switch(Line *in, Line *out) {
+	Token *tok = line_dequeue_token (in);
+	if (!tok) {
+		return TOKEN_STOP;
+	}
+
+	tokentype t = tok->type;
+	if (!line_append (out, tok)) {
+		return TOKEN_ERROR;
+	}
+
+	return t;
+}
+
 
 void line_free(Line *l) {
 	if (l) {
