@@ -11,6 +11,7 @@
 #include "decoders.h"
 #include "lines.h"
 #include "lines_beautify.h"
+#include "ugly_lines.h"
 #include "printlines.h"
 
 
@@ -24,14 +25,16 @@ void usage(char *name) {
 	printf("\n");
 	printf("\t-h\t help menu\n");
 	printf("\t-d\t do deobfuscation\n");
+	printf("\t-p\t pretty -> try to do more pretty stuff, increase chance of breaking code\n");
 }
 
 int main(int argc, char *argv[]) {
 	int fd = -1;
 	bool deobf = false;
+	bool pretty = false;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "hd")) != -1) {
+	while ((opt = getopt(argc, argv, "hdp")) != -1) {
 		switch (opt) {
 		case 'h':
 			usage(argv[0]);
@@ -39,6 +42,9 @@ int main(int argc, char *argv[]) {
 			break;
 		case 'd':
 			deobf = true;
+			break;
+		case 'p':
+			pretty = true;
 			break;
 		default:
 			usage(argv[0]);
@@ -71,9 +77,13 @@ int main(int argc, char *argv[]) {
 		l = decoder_creat_start_thread (l); // token list (deobfuscated)
 	}
 
-	// l becomes a list of lines
-	l = lines_creat_start_thread (l); // makes basic lines
-	l = lines_beautify (l); // deeper beautification
+	if (pretty) {
+		// l becomes a list of lines
+		l = lines_creat_start_thread (l); // makes basic lines
+		l = lines_beautify (l); // deeper beautification
+	} else {
+		l = ugly_lines_start_thread (l); // makes basic lines
+	}
 	printlines(l, stdout);
 
 	close(fd);

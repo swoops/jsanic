@@ -59,7 +59,7 @@ static void *threadup_beautifyer(void *in) {
 
 List* lines_beautify(List *lines) {
 	List *outlines = NULL;
-	if (lines && (outlines = lines_new ())) {
+	if (lines && (outlines = lines_list_new ())) {
 		Thread_params *t = (Thread_params *)malloc (sizeof (Thread_params));
 		if (!t) {
 			list_destroy (lines);

@@ -61,7 +61,7 @@ static inline bool maybe_space_surround(List *tokens, Line *line) {
 }
 
 static lineret append_until_paren_fin(List *tokens, Line *line) {
-	Token *tok = token_list_dequeue(tokens);
+	Token *tok = token_list_dequeue (tokens);
 
 	LINE_APPEND (line, tok)
 	if (tok->type != TOKEN_OPEN_PAREN) {
@@ -439,16 +439,12 @@ static void *getlines(void *in) {
 	return NULL;
 }
 
-List *lines_new() {
-	return list_new ((void (*)(void *))&line_free, true);
-}
-
 List *lines_creat_start_thread(List *tokens) {
 	if (!tokens) {
 		return NULL;
 	}
 
-	List *lines = lines_new ();
+	List *lines = lines_list_new ();
 	if (!lines) {
 		list_destroy (tokens);
 		return NULL;
