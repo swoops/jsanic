@@ -85,6 +85,10 @@ void line_free(Line *l) {
 	}
 }
 
+List *lines_list_new() {
+	return list_new ((void (*)(void *))&line_free, true);
+}
+
 Line *line_new(size_t n, int indent) {
 	Line *l = (Line *)malloc (sizeof (Line));
 	if (l) {

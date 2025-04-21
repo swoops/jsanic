@@ -27,5 +27,6 @@ tokentype line_switch(Line *in, Line *out);
 bool line_append_space(Line *line);
 tokentype line_peek_last_type(Line *line);
 void line_free(Line *l);
+List *lines_list_new();
 Line *line_new(size_t n, int indent);
 bool line_ends_with_type(Line *line);
